@@ -1,4 +1,5 @@
 *.sh
+ChatClient/storage/*.*
 
 # Visual Studio
 .vs/
