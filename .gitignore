@@ -1,6 +1,11 @@
 *.sh
 ChatClient/storage/*.*
 
+# Environment variables
+.env
+.env.local
+.env.production
+
 # Visual Studio
 .vs/
 *.user
