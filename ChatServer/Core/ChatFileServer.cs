@@ -17,6 +17,8 @@ namespace ChatServer.Core
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly object _lockObject = new object();
         private Timer? _cleanupTimer;
+        private DateTime _startTime;
+        private long _totalBytesTransferred = 0;
 
         public event EventHandler<ClientEventArgs>? ClientConnected;
         public event EventHandler<ClientEventArgs>? ClientDisconnected;
@@ -46,8 +48,9 @@ namespace ChatServer.Core
                 
                 _listener.Start();
                 IsRunning = true;
+                _startTime = DateTime.UtcNow; // Registrar tiempo de inicio
 
-                Console.WriteLine($"🚀 Servidor iniciado en puerto {_port}");
+                Console.WriteLine($"[+] Servidor iniciado en puerto {_port}");
                 
                 // Timer para limpiar transferencias expiradas cada minuto
                 _cleanupTimer = new Timer(CleanupExpiredTransfers, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
@@ -59,7 +62,7 @@ namespace ChatServer.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error iniciando servidor: {ex.Message}");
+                Console.WriteLine($"[X] Error iniciando servidor: {ex.Message}");
                 IsRunning = false;
                 throw;
             }
@@ -87,11 +90,11 @@ namespace ChatServer.Core
                 }
 
                 _listener?.Stop();
-                Console.WriteLine("🛑 Servidor detenido");
+                Console.WriteLine("[!] Servidor detenido");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error deteniendo servidor: {ex.Message}");
+                Console.WriteLine($"[X] Error deteniendo servidor: {ex.Message}");
             }
         }
 
@@ -111,7 +114,7 @@ namespace ChatServer.Core
                     
                     if (_clients.TryAdd(clientId, client))
                     {
-                        Console.WriteLine($"✅ Cliente {clientId} conectado desde {tcpClient.Client.RemoteEndPoint}");
+                        Console.WriteLine($"[+] Cliente {clientId} conectado desde {tcpClient.Client.RemoteEndPoint}");
                         
                         // Iniciar el manejo del cliente en un hilo separado
                         _ = Task.Run(() => HandleClientAsync(client), client.CancellationTokenSource.Token);
@@ -132,7 +135,7 @@ namespace ChatServer.Core
                 {
                     if (IsRunning)
                     {
-                        Console.WriteLine($"❌ Error aceptando cliente: {ex.Message}");
+                        Console.WriteLine($"[X] Error aceptando cliente: {ex.Message}");
                     }
                 }
             }
@@ -160,7 +163,7 @@ namespace ChatServer.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error manejando cliente {client.Id}: {ex.Message}");
+                Console.WriteLine($"[X] Error manejando cliente {client.Id}: {ex.Message}");
             }
             finally
             {
@@ -210,7 +213,7 @@ namespace ChatServer.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error procesando mensaje: {ex.Message}");
+                Console.WriteLine($"[X] Error procesando mensaje: {ex.Message}");
             }
         }
 
@@ -219,7 +222,7 @@ namespace ChatServer.Core
         /// </summary>
         private async Task HandleChatMessageAsync(ChatMessage chatMessage)
         {
-            Console.WriteLine($"💬 [{DateTime.Now:HH:mm:ss}] {GetClientName(chatMessage.SenderId)}: {chatMessage.Content}");
+            Console.WriteLine($"[MSG] [{DateTime.Now:HH:mm:ss}] {GetClientName(chatMessage.SenderId)}: {chatMessage.Content}");
 
             if (string.IsNullOrEmpty(chatMessage.TargetClientId))
             {
@@ -264,6 +267,9 @@ namespace ChatServer.Core
             
             if (result.Success)
             {
+                // Contabilizar bytes transferidos
+                Interlocked.Add(ref _totalBytesTransferred, fileData.Data.Length);
+                
                 // Reenviar datos al cliente destino
                 await SendMessageToClientAsync(fileData.TargetClientId, fileData);
                 
@@ -273,7 +279,7 @@ namespace ChatServer.Core
 
                 if (result.IsComplete)
                 {
-                    Console.WriteLine($"📥 Transferencia completada: {result.Transfer?.FileName}");
+                    Console.WriteLine($"[<] Transferencia completada: {result.Transfer?.FileName}");
                     
                     // La transferencia está completa, enviar FILE_END
                     var fileEnd = new FileEndMessage(fileData.TransferId, fileData.TargetClientId, true);
@@ -301,11 +307,11 @@ namespace ChatServer.Core
             {
                 if (fileEnd.Success)
                 {
-                    Console.WriteLine($"✅ Transferencia finalizada exitosamente: {transfer.FileName}");
+                    Console.WriteLine($"[OK] Transferencia finalizada exitosamente: {transfer.FileName}");
                 }
                 else
                 {
-                    Console.WriteLine($"❌ Transferencia falló: {transfer.FileName} - {fileEnd.ErrorMessage}");
+                    Console.WriteLine($"[X] Transferencia fallo: {transfer.FileName} - {fileEnd.ErrorMessage}");
                 }
                 
                 _fileTransferManager.CancelTransfer(fileEnd.TransferId);
@@ -419,13 +425,14 @@ namespace ChatServer.Core
         public ServerStats GetStats()
         {
             var transferStats = _fileTransferManager.GetStats();
+            var uptime = IsRunning ? (DateTime.UtcNow - _startTime).TotalMinutes : 0;
             
             return new ServerStats
             {
                 ConnectedClients = _clients.Count,
                 ActiveTransfers = transferStats.ActiveTransfers,
-                TotalDataTransferred = transferStats.TotalDataTransferred,
-                UptimeMinutes = IsRunning ? (DateTime.UtcNow - DateTime.UtcNow).TotalMinutes : 0
+                TotalDataTransferred = _totalBytesTransferred + transferStats.TotalDataTransferred,
+                UptimeMinutes = uptime
             };
         }
 

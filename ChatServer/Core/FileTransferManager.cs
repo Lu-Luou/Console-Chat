@@ -10,6 +10,7 @@ namespace ChatServer.Core
     {
         private readonly ConcurrentDictionary<string, FileTransfer> _activeTransfers = new();
         private readonly object _lockObject = new object();
+        private long _totalCompletedBytes = 0;
 
         /// <summary>
         /// Inicia una nueva transferencia de archivo
@@ -107,6 +108,9 @@ namespace ChatServer.Core
                     return null;
                 }
 
+                // Agregar bytes completados al total
+                Interlocked.Add(ref _totalCompletedBytes, transfer.FileSize);
+
                 // Combinar todos los bloques en orden
                 using var ms = new MemoryStream();
                 for (int i = 0; i < transfer.ExpectedSequences; i++)
@@ -172,10 +176,11 @@ namespace ChatServer.Core
         /// </summary>
         public TransferStats GetStats()
         {
+            var activeBytes = _activeTransfers.Values.Sum(t => t.BytesReceived);
             return new TransferStats
             {
                 ActiveTransfers = _activeTransfers.Count,
-                TotalDataTransferred = _activeTransfers.Values.Sum(t => t.BytesReceived)
+                TotalDataTransferred = _totalCompletedBytes + activeBytes
             };
         }
     }

@@ -9,7 +9,7 @@ namespace ChatClient
 
         static async Task Main(string[] args)
         {
-            Console.WriteLine("💬 Cliente de Chat y Transferencia de Archivos");
+            Console.WriteLine("[CLIENT] Cliente de Chat y Transferencia de Archivos");
             Console.WriteLine("=".PadRight(50, '='));
 
             // Configuración inicial
@@ -51,12 +51,12 @@ namespace ChatClient
                 }
                 else
                 {
-                    Console.WriteLine("❌ No se pudo conectar al servidor");
+                    Console.WriteLine("[X] No se pudo conectar al servidor");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error fatal: {ex.Message}");
+                Console.WriteLine($"[X] Error fatal: {ex.Message}");
             }
             finally
             {
@@ -83,7 +83,7 @@ namespace ChatClient
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Error procesando comando: {ex.Message}");
+                    Console.WriteLine($"[X] Error procesando comando: {ex.Message}");
                 }
             }
         }
@@ -102,17 +102,17 @@ namespace ChatClient
             {
                 "/help" or "/h" or "/?" => Task.Run(ShowHelp),
                 "/quit" or "/exit" or "/q" => Task.Run(() => {
-                    Console.WriteLine("👋 Desconectando...");
+                    Console.WriteLine("[!] Desconectando...");
                     _cancellationTokenSource?.Cancel();
                 }),
                 "/send" or "/s" when parts.Length >= 3 => HandleSendCommand(parts),
-                "/send" or "/s" => Task.Run(() => Console.WriteLine("❌ Uso: /send <cliente_id> <mensaje>")),
+                "/send" or "/s" => Task.Run(() => Console.WriteLine("[X] Uso: /send <cliente_id> <mensaje>")),
                 "/file" or "/f" when parts.Length >= 3 => HandleFileCommand(parts),
-                "/file" or "/f" => Task.Run(() => Console.WriteLine("❌ Uso: /file <cliente_id> <ruta_archivo>")),
+                "/file" or "/f" => Task.Run(() => Console.WriteLine("[X] Uso: /file <cliente_id> <ruta_archivo>")),
                 "/create" or "/c" when parts.Length >= 2 => CreateTestFileAsync(parts[1]),
-                "/create" or "/c" => Task.Run(() => Console.WriteLine("❌ Uso: /create <nombre_archivo>")),
+                "/create" or "/c" => Task.Run(() => Console.WriteLine("[X] Uso: /create <nombre_archivo>")),
                 _ when !input.StartsWith("/") => _client.SendChatMessageAsync(input),
-                _ => Task.Run(() => Console.WriteLine($"❓ Comando desconocido: {command}. Escribe /help para ver comandos disponibles."))
+                _ => Task.Run(() => Console.WriteLine($"[?] Comando desconocido: {command}. Escribe /help para ver comandos disponibles."))
             });
         }
 
@@ -129,11 +129,11 @@ namespace ChatClient
                     """;
 
                 await File.WriteAllTextAsync(fileName, content);
-                Console.WriteLine($"✅ Archivo creado: {fileName} ({new FileInfo(fileName).Length} bytes)");
+                Console.WriteLine($"[OK] Archivo creado: {fileName} ({new FileInfo(fileName).Length} bytes)");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error creando archivo: {ex.Message}");
+                Console.WriteLine($"[X] Error creando archivo: {ex.Message}");
             }
         }
 
@@ -181,16 +181,16 @@ namespace ChatClient
 
         private static void ShowHelp()
         {
-            Console.WriteLine("💡 Comandos Disponibles:");
+            Console.WriteLine("[HELP] Comandos Disponibles:");
             Console.WriteLine("-".PadRight(30, '-'));
-            Console.WriteLine("  <mensaje>                    - Enviar mensaje público");
+            Console.WriteLine("  <mensaje>                    - Enviar mensaje publico");
             Console.WriteLine("  /send <id> <mensaje>         - Enviar mensaje privado");
             Console.WriteLine("  /file <id> <archivo>         - Enviar archivo");
             Console.WriteLine("  /create <nombre>             - Crear archivo de prueba");
             Console.WriteLine("  /help                        - Mostrar esta ayuda");
             Console.WriteLine("  /quit                        - Salir del cliente");
             Console.WriteLine();
-            Console.WriteLine("💡 Ejemplos:");
+            Console.WriteLine("[INFO] Ejemplos:");
             Console.WriteLine("  Hola a todos");
             Console.WriteLine("  /send abc12345 Hola cliente específico");
             Console.WriteLine("  /file abc12345 documento.txt");
@@ -220,7 +220,7 @@ namespace ChatClient
             }
             else
             {
-                Console.WriteLine($"❌ Archivo no encontrado: {filePath}");
+                Console.WriteLine($"[X] Archivo no encontrado: {filePath}");
             }
         }
 
@@ -232,23 +232,23 @@ namespace ChatClient
                 {
                     await _client.DisconnectAsync();
                 }
-                Console.WriteLine("✅ Cliente cerrado exitosamente");
+                Console.WriteLine("[OK] Cliente cerrado exitosamente");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error cerrando cliente: {ex.Message}");
+                Console.WriteLine($"[X] Error cerrando cliente: {ex.Message}");
             }
         }
 
         // Event handlers
         private static void OnConnected(object? sender, EventArgs e)
         {
-            Console.WriteLine("🎉 Conectado al servidor exitosamente");
+            Console.WriteLine("[+] Conectado al servidor exitosamente");
         }
 
         private static void OnDisconnected(object? sender, EventArgs e)
         {
-            Console.WriteLine("🔌 Desconectado del servidor");
+            Console.WriteLine("[-] Desconectado del servidor");
         }
 
         private static void OnMessageReceived(object? sender, MessageReceivedEventArgs e)
@@ -258,18 +258,18 @@ namespace ChatClient
 
         private static void OnFileTransferStarted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"📤 Transferencia iniciada: {e.FileName}");
+            Console.WriteLine($"[>] Transferencia iniciada: {e.FileName}");
         }
 
         private static void OnFileTransferCompleted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"✅ Transferencia completada: {e.FileName}");
+            Console.WriteLine($"[OK] Transferencia completada: {e.FileName}");
         }
 
         private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
         {
             e.Cancel = true; // Evitar el cierre inmediato
-            Console.WriteLine("\n🛑 Señal de cierre recibida. Desconectando...");
+            Console.WriteLine("\n[!] Señal de cierre recibida. Desconectando...");
             _cancellationTokenSource?.Cancel();
         }
     }

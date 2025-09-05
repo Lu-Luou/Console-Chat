@@ -9,7 +9,7 @@ namespace ChatServer
 
         static async Task Main(string[] args)
         {
-            Console.WriteLine("🚀 Iniciando Servidor de Chat y Transferencia de Archivos");
+            Console.WriteLine("[+] Iniciando Servidor de Chat y Transferencia de Archivos");
             Console.WriteLine("=".PadRight(60, '='));
 
             int port = 8888;
@@ -37,8 +37,8 @@ namespace ChatServer
             {
                 await _server.StartAsync();
 
-                Console.WriteLine($"📡 Servidor escuchando en puerto {port}");
-                Console.WriteLine("💡 Comandos disponibles:");
+                Console.WriteLine($"[*] Servidor escuchando en puerto {port}");
+                Console.WriteLine("[!] Comandos disponibles:");
                 Console.WriteLine("   'stats' - Mostrar estadísticas del servidor");
                 Console.WriteLine("   'clients' - Listar clientes conectados");
                 Console.WriteLine("   'quit' - Detener el servidor");
@@ -49,7 +49,7 @@ namespace ChatServer
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error fatal del servidor: {ex.Message}");
+                Console.WriteLine($"[X] Error fatal del servidor: {ex.Message}");
             }
             finally
             {
@@ -79,14 +79,14 @@ namespace ChatServer
                             ShowConnectedClients();
                             break;
                         case "quit" or "exit" or "stop":
-                            Console.WriteLine("🛑 Deteniendo servidor...");
+                            Console.WriteLine("[!] Deteniendo servidor...");
                             _cancellationTokenSource?.Cancel();
                             return;
                         case "help" or "?":
                             ShowHelp();
                             break;
                         default:
-                            Console.WriteLine($"❓ Comando desconocido: {input}. Escribe 'help' para ver comandos disponibles.");
+                            Console.WriteLine($"[?] Comando desconocido: {input}. Escribe 'help' para ver comandos disponibles.");
                             break;
                     }
                 }
@@ -96,7 +96,7 @@ namespace ChatServer
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Error procesando comando: {ex.Message}");
+                    Console.WriteLine($"[X] Error procesando comando: {ex.Message}");
                 }
             }
         }
@@ -148,13 +148,23 @@ namespace ChatServer
             if (_server == null) return;
 
             var stats = _server.GetStats();
+            var uptimeSpan = TimeSpan.FromMinutes(stats.UptimeMinutes);
+            
             Console.WriteLine();
-            Console.WriteLine("📊 Estadísticas del Servidor");
-            Console.WriteLine("-".PadRight(30, '-'));
-            Console.WriteLine($"   Clientes conectados: {stats.ConnectedClients}");
-            Console.WriteLine($"   Transferencias activas: {stats.ActiveTransfers}");
-            Console.WriteLine($"   Datos transferidos: {FormatBytes(stats.TotalDataTransferred)}");
-            Console.WriteLine($"   Tiempo activo: {stats.UptimeMinutes:F1} minutos");
+            Console.WriteLine("[STATS] Estadisticas del Servidor");
+            Console.WriteLine("=".PadRight(40, '='));
+            Console.WriteLine($"   [T] Tiempo activo: {uptimeSpan.Days}d {uptimeSpan.Hours}h {uptimeSpan.Minutes}m");
+            Console.WriteLine($"   [U] Clientes conectados: {stats.ConnectedClients}");
+            Console.WriteLine($"   [>] Transferencias activas: {stats.ActiveTransfers}");
+            Console.WriteLine($"   [D] Datos transferidos: {FormatBytes(stats.TotalDataTransferred)}");
+            
+            if (stats.UptimeMinutes > 0)
+            {
+                var throughputPerMin = stats.TotalDataTransferred / stats.UptimeMinutes;
+                Console.WriteLine($"   [R] Throughput promedio: {FormatBytes((long)throughputPerMin)}/min");
+            }
+            
+            Console.WriteLine($"   [S] Servidor iniciado: {DateTime.UtcNow.AddMinutes(-stats.UptimeMinutes):yyyy-MM-dd HH:mm:ss} UTC");
             Console.WriteLine();
         }
 
@@ -164,7 +174,7 @@ namespace ChatServer
 
             var clients = _server.GetConnectedClients();
             Console.WriteLine();
-            Console.WriteLine($"👥 Clientes Conectados ({clients.Count})");
+            Console.WriteLine($"[USERS] Clientes Conectados ({clients.Count})");
             Console.WriteLine("-".PadRight(40, '-'));
             
             if (clients.Count == 0)
@@ -185,7 +195,7 @@ namespace ChatServer
         private static void ShowHelp()
         {
             Console.WriteLine();
-            Console.WriteLine("💡 Comandos Disponibles");
+            Console.WriteLine("[HELP] Comandos Disponibles");
             Console.WriteLine("-".PadRight(25, '-'));
             Console.WriteLine("   stats   - Mostrar estadísticas del servidor");
             Console.WriteLine("   clients - Listar clientes conectados");
@@ -217,23 +227,23 @@ namespace ChatServer
                 {
                     await _server.StopAsync();
                 }
-                Console.WriteLine("✅ Servidor detenido exitosamente");
+                Console.WriteLine("[OK] Servidor detenido exitosamente");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error deteniendo servidor: {ex.Message}");
+                Console.WriteLine($"[X] Error deteniendo servidor: {ex.Message}");
             }
         }
 
         // Event handlers
         private static void OnClientConnected(object? sender, ClientEventArgs e)
         {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ✅ {e.Client.Name} conectado");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [+] {e.Client.Name} conectado");
         }
 
         private static void OnClientDisconnected(object? sender, ClientEventArgs e)
         {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ❌ {e.Client.Name} desconectado");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [-] {e.Client.Name} desconectado");
         }
 
         private static void OnMessageReceived(object? sender, MessageEventArgs e)
@@ -243,18 +253,18 @@ namespace ChatServer
 
         private static void OnFileTransferStarted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] 📤 Iniciando transferencia: {e.FileName}");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [>] Iniciando transferencia: {e.FileName}");
         }
 
         private static void OnFileTransferCompleted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ✅ Transferencia completada: {e.FileName}");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [OK] Transferencia completada: {e.FileName}");
         }
 
         private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
         {
             e.Cancel = true; // Evitar el cierre inmediato
-            Console.WriteLine("\n🛑 Señal de cierre recibida. Deteniendo servidor...");
+            Console.WriteLine("\n[!] Señal de cierre recibida. Deteniendo servidor...");
             _cancellationTokenSource?.Cancel();
         }
     }

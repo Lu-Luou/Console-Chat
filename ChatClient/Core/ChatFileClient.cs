@@ -45,7 +45,7 @@ namespace ChatClient.Core
                 _stream = _tcpClient.GetStream();
                 _cancellationTokenSource = new CancellationTokenSource();
 
-                Console.WriteLine($"✅ Conectado al servidor {_serverHost}:{_serverPort}");
+                Console.WriteLine($"[+] Conectado al servidor {_serverHost}:{_serverPort}");
 
                 // Enviar mensaje de conexión
                 var connectMessage = new ClientConnectMessage(ClientName);
@@ -59,7 +59,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error conectando al servidor: {ex.Message}");
+                Console.WriteLine($"[X] Error conectando al servidor: {ex.Message}");
                 return false;
             }
         }
@@ -77,12 +77,12 @@ namespace ChatClient.Core
                 _stream?.Close();
                 _tcpClient?.Close();
 
-                Console.WriteLine("🔌 Desconectado del servidor");
+                Console.WriteLine("[-] Desconectado del servidor");
                 Disconnected?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error desconectando: {ex.Message}");
+                Console.WriteLine($"[X] Error desconectando: {ex.Message}");
             }
         }
 
@@ -111,13 +111,13 @@ namespace ChatClient.Core
                 var fileName = fileInfo.Name;
                 var fileSize = fileInfo.Length;
 
-                Console.WriteLine($"📤 Enviando archivo: {fileName} ({FormatBytes(fileSize)}) a cliente {targetClientId}");
+                Console.WriteLine($"[>] Enviando archivo: {fileName} ({FormatBytes(fileSize)}) a cliente {targetClientId}");
 
                 // Enviar mensaje de inicio
                 var fileStart = new FileStartMessage(fileName, fileSize, targetClientId);
                 if (!await SendMessageAsync(fileStart))
                 {
-                    Console.WriteLine("❌ Error enviando mensaje FILE_START");
+                    Console.WriteLine("[X] Error enviando mensaje FILE_START");
                     return false;
                 }
 
@@ -137,7 +137,7 @@ namespace ChatClient.Core
                     
                     if (!await SendMessageAsync(fileData))
                     {
-                        Console.WriteLine($"❌ Error enviando chunk {sequenceNumber}");
+                        Console.WriteLine($"[X] Error enviando chunk {sequenceNumber}");
                         return false;
                     }
 
@@ -151,12 +151,12 @@ namespace ChatClient.Core
                 var fileEnd = new FileEndMessage(fileStart.TransferId, targetClientId, true);
                 await SendMessageAsync(fileEnd);
 
-                Console.WriteLine($"✅ Archivo enviado: {fileName}");
+                Console.WriteLine($"[OK] Archivo enviado: {fileName}");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error enviando archivo: {ex.Message}");
+                Console.WriteLine($"[X] Error enviando archivo: {ex.Message}");
                 return false;
             }
         }
@@ -189,7 +189,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error enviando mensaje: {ex.Message}");
+                Console.WriteLine($"[X] Error enviando mensaje: {ex.Message}");
                 return false;
             }
         }
@@ -211,7 +211,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error en bucle de recepción: {ex.Message}");
+                Console.WriteLine($"[X] Error en bucle de recepcion: {ex.Message}");
             }
             finally
             {
@@ -265,7 +265,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error recibiendo mensaje: {ex.Message}");
+                Console.WriteLine($"[X] Error recibiendo mensaje: {ex.Message}");
                 return null;
             }
         }
@@ -389,7 +389,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error procesando mensaje: {ex.Message}");
+                Console.WriteLine($"[X] Error procesando mensaje: {ex.Message}");
             }
         }
 
@@ -397,18 +397,18 @@ namespace ChatClient.Core
         {
             if (chatMessage.SenderId == "SERVER")
             {
-                Console.WriteLine($"🔔 {chatMessage.Content}");
+                Console.WriteLine($"[*] {chatMessage.Content}");
             }
             else
             {
-                Console.WriteLine($"💬 [{DateTime.Now:HH:mm:ss}] {chatMessage.SenderId}: {chatMessage.Content}");
+                Console.WriteLine($"[MSG] [{DateTime.Now:HH:mm:ss}] {chatMessage.SenderId}: {chatMessage.Content}");
             }
             return Task.CompletedTask;
         }
 
         private Task HandleFileStartAsync(FileStartMessage fileStart)
         {
-            Console.WriteLine($"📥 Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
+            Console.WriteLine($"[<] Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
             FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
             return Task.CompletedTask;
         }
@@ -417,7 +417,7 @@ namespace ChatClient.Core
         {
             // En un cliente real, aquí almacenaríamos los datos del archivo
             // Para el demo, solo mostramos el progreso
-            Console.WriteLine($"📦 Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes)");
+            Console.WriteLine($"[D] Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes)");
             return Task.CompletedTask;
         }
 
@@ -425,11 +425,11 @@ namespace ChatClient.Core
         {
             if (fileEnd.Success)
             {
-                Console.WriteLine($"✅ Transferencia completada: Transfer ID {fileEnd.TransferId}");
+                Console.WriteLine($"[OK] Transferencia completada: Transfer ID {fileEnd.TransferId}");
             }
             else
             {
-                Console.WriteLine($"❌ Transferencia falló: {fileEnd.ErrorMessage}");
+                Console.WriteLine($"[X] Transferencia fallo: {fileEnd.ErrorMessage}");
             }
             
             FileTransferCompleted?.Invoke(this, new FileTransferEventArgs(fileEnd.TransferId, ""));
@@ -444,7 +444,7 @@ namespace ChatClient.Core
 
         private Task HandleErrorAsync(ErrorMessage error)
         {
-            Console.WriteLine($"❌ Error del servidor: {error.ErrorDescription}");
+            Console.WriteLine($"[X] Error del servidor: {error.ErrorDescription}");
             return Task.CompletedTask;
         }
 
