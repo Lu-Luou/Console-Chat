@@ -97,92 +97,36 @@ namespace ChatClient
 
             var command = parts[0].ToLower();
 
-            switch (command)
+            // Pattern matching moderno con switch expression
+            await (command switch
             {
-                case "/help":
-                case "/h":
-                case "/?":
-                    ShowHelp();
-                    break;
-
-                case "/quit":
-                case "/exit":
-                case "/q":
+                "/help" or "/h" or "/?" => Task.Run(ShowHelp),
+                "/quit" or "/exit" or "/q" => Task.Run(() => {
                     Console.WriteLine("👋 Desconectando...");
                     _cancellationTokenSource?.Cancel();
-                    break;
-
-                case "/send":
-                case "/s":
-                    if (parts.Length >= 3)
-                    {
-                        var targetClient = parts[1];
-                        var message = string.Join(" ", parts.Skip(2));
-                        await _client.SendChatMessageAsync(message, targetClient);
-                    }
-                    else
-                    {
-                        Console.WriteLine("❌ Uso: /send <cliente_id> <mensaje>");
-                    }
-                    break;
-
-                case "/file":
-                case "/f":
-                    if (parts.Length >= 3)
-                    {
-                        var targetClient = parts[1];
-                        var filePath = parts[2];
-                        
-                        if (File.Exists(filePath))
-                        {
-                            await _client.SendFileAsync(filePath, targetClient);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"❌ Archivo no encontrado: {filePath}");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("❌ Uso: /file <cliente_id> <ruta_archivo>");
-                    }
-                    break;
-
-                case "/create":
-                case "/c":
-                    if (parts.Length >= 2)
-                    {
-                        var fileName = parts[1];
-                        await CreateTestFileAsync(fileName);
-                    }
-                    else
-                    {
-                        Console.WriteLine("❌ Uso: /create <nombre_archivo>");
-                    }
-                    break;
-
-                default:
-                    // Si no es un comando, enviar como mensaje de chat público
-                    if (!input.StartsWith("/"))
-                    {
-                        await _client.SendChatMessageAsync(input);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"❓ Comando desconocido: {command}. Escribe /help para ver comandos disponibles.");
-                    }
-                    break;
-            }
+                }),
+                "/send" or "/s" when parts.Length >= 3 => HandleSendCommand(parts),
+                "/send" or "/s" => Task.Run(() => Console.WriteLine("❌ Uso: /send <cliente_id> <mensaje>")),
+                "/file" or "/f" when parts.Length >= 3 => HandleFileCommand(parts),
+                "/file" or "/f" => Task.Run(() => Console.WriteLine("❌ Uso: /file <cliente_id> <ruta_archivo>")),
+                "/create" or "/c" when parts.Length >= 2 => CreateTestFileAsync(parts[1]),
+                "/create" or "/c" => Task.Run(() => Console.WriteLine("❌ Uso: /create <nombre_archivo>")),
+                _ when !input.StartsWith("/") => _client.SendChatMessageAsync(input),
+                _ => Task.Run(() => Console.WriteLine($"❓ Comando desconocido: {command}. Escribe /help para ver comandos disponibles."))
+            });
         }
 
         private static async Task CreateTestFileAsync(string fileName)
         {
             try
             {
-                var content = $"Archivo de prueba creado el {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n";
-                content += "Este es un archivo de prueba para transferencias.\n";
-                content += "Contiene texto simple para demostrar el protocolo de transferencia de archivos.\n";
-                content += new string('X', 1000); // Agregar algo de contenido
+                // Usando interpolación de strings moderna (.NET 8)
+                var content = $$"""
+                    Archivo de prueba creado el {{DateTime.Now:yyyy-MM-dd HH:mm:ss}}
+                    Este es un archivo de prueba para transferencias.
+                    Contiene texto simple para demostrar el protocolo de transferencia de archivos.
+                    {{new string('X', 1000)}}
+                    """;
 
                 await File.WriteAllTextAsync(fileName, content);
                 Console.WriteLine($"✅ Archivo creado: {fileName} ({new FileInfo(fileName).Length} bytes)");
@@ -195,18 +139,44 @@ namespace ChatClient
 
         private static async Task<string> ReadLineAsync(CancellationToken cancellationToken)
         {
-            return await Task.Run(() =>
+            // Versión moderna con TaskCompletionSource (.NET 8)
+            var tcs = new TaskCompletionSource<string>();
+            
+            using var registration = cancellationToken.Register(() => tcs.TrySetCanceled());
+            
+            _ = Task.Run(async () =>
             {
-                while (!cancellationToken.IsCancellationRequested)
+                try
                 {
-                    if (Console.KeyAvailable)
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        return Console.ReadLine() ?? "";
+                        if (Console.KeyAvailable)
+                        {
+                            var result = Console.ReadLine() ?? "";
+                            tcs.TrySetResult(result);
+                            return;
+                        }
+                        await Task.Delay(50, cancellationToken); // Más eficiente que Thread.Sleep
                     }
-                    Thread.Sleep(100);
                 }
-                return "";
+                catch (OperationCanceledException)
+                {
+                    tcs.TrySetCanceled();
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
             }, cancellationToken);
+
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException)
+            {
+                return "";
+            }
         }
 
         private static void ShowHelp()
@@ -225,6 +195,33 @@ namespace ChatClient
             Console.WriteLine("  /send abc12345 Hola cliente específico");
             Console.WriteLine("  /file abc12345 documento.txt");
             Console.WriteLine("  /create prueba.txt");
+        }
+
+        // Métodos auxiliares modernos para .NET 8
+        private static async Task HandleSendCommand(string[] parts)
+        {
+            if (_client?.IsConnected != true) return;
+            
+            var targetClient = parts[1];
+            var message = string.Join(" ", parts.Skip(2));
+            await _client.SendChatMessageAsync(message, targetClient);
+        }
+
+        private static async Task HandleFileCommand(string[] parts)
+        {
+            if (_client?.IsConnected != true) return;
+            
+            var targetClient = parts[1];
+            var filePath = parts[2];
+            
+            if (File.Exists(filePath))
+            {
+                await _client.SendFileAsync(filePath, targetClient);
+            }
+            else
+            {
+                Console.WriteLine($"❌ Archivo no encontrado: {filePath}");
+            }
         }
 
         private static async Task DisconnectAsync()

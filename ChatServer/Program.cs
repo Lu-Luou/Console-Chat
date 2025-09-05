@@ -67,28 +67,24 @@ namespace ChatServer
                     
                     if (string.IsNullOrWhiteSpace(input)) continue;
 
-                    switch (input.ToLower().Trim())
+                    var command = input.ToLower().Trim();
+                    
+                    // Pattern matching moderno con switch expression
+                    switch (command)
                     {
                         case "stats":
                             ShowStats();
                             break;
-                        
                         case "clients":
                             ShowConnectedClients();
                             break;
-                        
-                        case "quit":
-                        case "exit":
-                        case "stop":
+                        case "quit" or "exit" or "stop":
                             Console.WriteLine("🛑 Deteniendo servidor...");
                             _cancellationTokenSource?.Cancel();
                             return;
-                        
-                        case "help":
-                        case "?":
+                        case "help" or "?":
                             ShowHelp();
                             break;
-                        
                         default:
                             Console.WriteLine($"❓ Comando desconocido: {input}. Escribe 'help' para ver comandos disponibles.");
                             break;
@@ -107,18 +103,44 @@ namespace ChatServer
 
         private static async Task<string> ReadLineAsync(CancellationToken cancellationToken)
         {
-            return await Task.Run(() =>
+            // Versión moderna con TaskCompletionSource (.NET 8)
+            var tcs = new TaskCompletionSource<string>();
+            
+            using var registration = cancellationToken.Register(() => tcs.TrySetCanceled());
+            
+            _ = Task.Run(async () =>
             {
-                while (!cancellationToken.IsCancellationRequested)
+                try
                 {
-                    if (Console.KeyAvailable)
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        return Console.ReadLine() ?? "";
+                        if (Console.KeyAvailable)
+                        {
+                            var result = Console.ReadLine() ?? "";
+                            tcs.TrySetResult(result);
+                            return;
+                        }
+                        await Task.Delay(50, cancellationToken); // Más eficiente que Thread.Sleep
                     }
-                    Thread.Sleep(100);
                 }
-                return "";
+                catch (OperationCanceledException)
+                {
+                    tcs.TrySetCanceled();
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
             }, cancellationToken);
+
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException)
+            {
+                return "";
+            }
         }
 
         private static void ShowStats()
