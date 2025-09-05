@@ -1,1 +1,147 @@
-/test_demo.sh
+*.sh
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet Packages
+*.nupkg
+# The packages folder can be ignored because of Package Restore
+**/packages/*
+!**/packages/build/
+!**/packages/repositories.config
+
+# Microsoft Azure Build Output
+csx/
+*.build.csdef
+
+# Resharper
+*.DotSettings.user
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotCover
+
+# StyleCop
+StyleCopReport.xml
+
+# Files built by Visual Studio
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.obj
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlh
+*.tli
+*.tmp
+*.log
+*.vspscc
+*.vssscc
+.builds
+
+# Others
+*.dbmdl
+*.bak
+*.backup
+*.cache
+*.config
+*.db
+*.mdf
+*.ldf
+*.ndf
+*.sdf
+*.sqlite
+*.sql
+*.suo
+*.swp
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# Test Results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# NCrunch
+*.ncrunch*
+.*crunch*.local.xml
+
+# User-specific files
+*.vspscc
+*.vssscc
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# DotCover
+*.dotCover
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Node.js Tools for Visual Studio
+node_modules/
+
+# Web Essentials
+*.publishsettings
+
+# Visual Studio Code
+.vscode/
+.history/
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# VS Code directories
+.vscode/
+.history/
+
+# Others
+*.DS_Store
+*.AppleDouble
+*.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+*.log
+*.vs/
