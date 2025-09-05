@@ -207,7 +207,7 @@ namespace ChatServer.Core
                         break;
                     
                     default:
-                        Console.WriteLine($"⚠️ Tipo de mensaje desconocido: {message.Type}");
+                        Console.WriteLine($"[WARN] Tipo de mensaje desconocido: {message.Type}");
                         break;
                 }
             }
@@ -329,7 +329,7 @@ namespace ChatServer.Core
             if (_clients.TryGetValue(connectMessage.SenderId, out var client))
             {
                 client.Name = connectMessage.ClientName;
-                Console.WriteLine($"👋 Cliente {connectMessage.SenderId} se identificó como: {connectMessage.ClientName}");
+                Console.WriteLine($"[INFO] Cliente {connectMessage.SenderId} se identificó como: {connectMessage.ClientName}");
                 
                 // Enviar el ID del cliente de vuelta
                 var idResponse = new ClientIdResponseMessage(connectMessage.SenderId)
@@ -385,7 +385,7 @@ namespace ChatServer.Core
         {
             if (_clients.TryRemove(clientId, out var client))
             {
-                Console.WriteLine($"👋 Cliente {client.Name} ({clientId}) desconectado: {reason}");
+                Console.WriteLine($"[INFO] Cliente {client.Name} ({clientId}) desconectado: {reason}");
                 
                 client.Disconnect();
                 ClientDisconnected?.Invoke(this, new ClientEventArgs(client));
