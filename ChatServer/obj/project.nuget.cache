@@ -1,8 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "AYMCpmVJIRM5fJT+yiyv6F8xPfP6UzsgcMCz3PHcxaHss9Dk9Cyg1aeK7H3Fz9hxr8GGDQDsNGqL6NkkxQ7s/w==",
+  "dgSpecHash": "6Fw3u/Y3p+g=",
   "success": true,
-  "projectFilePath": "/home/magma/Desktop/Cpp/ChatServer/ChatServer.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "C:\\Users\\ruber\\OneDrive\\Desktop\\Varios\\Console-Chat--ClaudeAI-\\ChatServer\\ChatServer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ruber\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.18\\microsoft.netcore.app.ref.8.0.18.nupkg.sha512",
+    "C:\\Users\\ruber\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.18\\microsoft.windowsdesktop.app.ref.8.0.18.nupkg.sha512",
+    "C:\\Users\\ruber\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.18\\microsoft.aspnetcore.app.ref.8.0.18.nupkg.sha512",
+    "C:\\Users\\ruber\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\8.0.18\\microsoft.netcore.app.host.win-x64.8.0.18.nupkg.sha512"
+  ],
   "logs": []
 }

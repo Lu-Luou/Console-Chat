@@ -14,6 +14,8 @@ namespace ChatClient.Core
         private NetworkStream? _stream;
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly object _sendLock = new object();
+        private readonly Dictionary<string, FileTransferInfo> _activeTransfers = new();
+        private readonly string _storageDirectory;
 
         public string ClientName { get; set; } = "Cliente";
         public bool IsConnected => _tcpClient?.Connected == true;
@@ -29,6 +31,13 @@ namespace ChatClient.Core
             _serverHost = serverHost;
             _serverPort = serverPort;
             ClientName = clientName;
+            
+            // Crear directorio de almacenamiento
+            _storageDirectory = Path.Combine(Directory.GetCurrentDirectory(), "storage");
+            if (!Directory.Exists(_storageDirectory))
+            {
+                Directory.CreateDirectory(_storageDirectory);
+            }
         }
 
         /// <summary>
@@ -45,7 +54,7 @@ namespace ChatClient.Core
                 _stream = _tcpClient.GetStream();
                 _cancellationTokenSource = new CancellationTokenSource();
 
-                Console.WriteLine($"[+] Conectado al servidor {_serverHost}:{_serverPort}");
+                Console.WriteLine($"✅ Conectado al servidor {_serverHost}:{_serverPort}");
 
                 // Enviar mensaje de conexión
                 var connectMessage = new ClientConnectMessage(ClientName);
@@ -59,7 +68,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error conectando al servidor: {ex.Message}");
+                Console.WriteLine($"❌ Error conectando al servidor: {ex.Message}");
                 return false;
             }
         }
@@ -67,23 +76,33 @@ namespace ChatClient.Core
         /// <summary>
         /// Desconecta del servidor
         /// </summary>
-        public async Task DisconnectAsync()
+        public Task DisconnectAsync()
         {
             try
             {
-                if (!IsConnected) return;
+                if (!IsConnected) return Task.CompletedTask;
 
                 _cancellationTokenSource?.Cancel();
+                
+                // Limpiar transferencias activas
+                foreach (var transfer in _activeTransfers.Values)
+                {
+                    transfer.FileStream?.Dispose();
+                }
+                _activeTransfers.Clear();
+
                 _stream?.Close();
                 _tcpClient?.Close();
 
-                Console.WriteLine("[-] Desconectado del servidor");
+                Console.WriteLine("🔌 Desconectado del servidor");
                 Disconnected?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error desconectando: {ex.Message}");
+                Console.WriteLine($"❌ Error desconectando: {ex.Message}");
             }
+            
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -111,13 +130,13 @@ namespace ChatClient.Core
                 var fileName = fileInfo.Name;
                 var fileSize = fileInfo.Length;
 
-                Console.WriteLine($"[>] Enviando archivo: {fileName} ({FormatBytes(fileSize)}) a cliente {targetClientId}");
+                Console.WriteLine($"📤 Enviando archivo: {fileName} ({FormatBytes(fileSize)}) a cliente {targetClientId}");
 
                 // Enviar mensaje de inicio
                 var fileStart = new FileStartMessage(fileName, fileSize, targetClientId);
                 if (!await SendMessageAsync(fileStart))
                 {
-                    Console.WriteLine("[X] Error enviando mensaje FILE_START");
+                    Console.WriteLine("❌ Error enviando mensaje FILE_START");
                     return false;
                 }
 
@@ -137,7 +156,7 @@ namespace ChatClient.Core
                     
                     if (!await SendMessageAsync(fileData))
                     {
-                        Console.WriteLine($"[X] Error enviando chunk {sequenceNumber}");
+                        Console.WriteLine($"❌ Error enviando chunk {sequenceNumber}");
                         return false;
                     }
 
@@ -151,12 +170,12 @@ namespace ChatClient.Core
                 var fileEnd = new FileEndMessage(fileStart.TransferId, targetClientId, true);
                 await SendMessageAsync(fileEnd);
 
-                Console.WriteLine($"[OK] Archivo enviado: {fileName}");
+                Console.WriteLine($"✅ Archivo enviado: {fileName}");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error enviando archivo: {ex.Message}");
+                Console.WriteLine($"❌ Error enviando archivo: {ex.Message}");
                 return false;
             }
         }
@@ -164,17 +183,17 @@ namespace ChatClient.Core
         /// <summary>
         /// Envía un mensaje al servidor
         /// </summary>
-        private async Task<bool> SendMessageAsync(Message message)
+        private Task<bool> SendMessageAsync(Message message)
         {
             try
             {
-                if (!IsConnected || _stream == null) return false;
+                if (!IsConnected || _stream == null) return Task.FromResult(false);
 
                 var data = message.Serialize();
                 
                 lock (_sendLock)
                 {
-                    if (!IsConnected || _stream == null) return false;
+                    if (!IsConnected || _stream == null) return Task.FromResult(false);
                     
                     // Enviar longitud del mensaje
                     var lengthBytes = BitConverter.GetBytes(data.Length);
@@ -185,12 +204,12 @@ namespace ChatClient.Core
                     _stream.Flush();
                 }
                 
-                return true;
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error enviando mensaje: {ex.Message}");
-                return false;
+                Console.WriteLine($"❌ Error enviando mensaje: {ex.Message}");
+                return Task.FromResult(false);
             }
         }
 
@@ -211,7 +230,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error en bucle de recepcion: {ex.Message}");
+                Console.WriteLine($"❌ Error en bucle de recepción: {ex.Message}");
             }
             finally
             {
@@ -249,6 +268,7 @@ namespace ChatClient.Core
                 bytesRead = 0;
                 while (bytesRead < messageLength)
                 {
+                    if (_stream == null || _cancellationTokenSource == null) return null;
                     int read = await _stream.ReadAsync(messageBytes, bytesRead, messageLength - bytesRead, _cancellationTokenSource.Token);
                     if (read == 0) return null;
                     bytesRead += read;
@@ -265,7 +285,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error recibiendo mensaje: {ex.Message}");
+                Console.WriteLine($"❌ Error recibiendo mensaje: {ex.Message}");
                 return null;
             }
         }
@@ -389,7 +409,7 @@ namespace ChatClient.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[X] Error procesando mensaje: {ex.Message}");
+                Console.WriteLine($"❌ Error procesando mensaje: {ex.Message}");
             }
         }
 
@@ -397,42 +417,136 @@ namespace ChatClient.Core
         {
             if (chatMessage.SenderId == "SERVER")
             {
-                Console.WriteLine($"[*] {chatMessage.Content}");
+                Console.WriteLine($"🔔 {chatMessage.Content}");
             }
             else
             {
-                Console.WriteLine($"[MSG] [{DateTime.Now:HH:mm:ss}] {chatMessage.SenderId}: {chatMessage.Content}");
+                Console.WriteLine($"💬 [{DateTime.Now:HH:mm:ss}] {chatMessage.SenderId}: {chatMessage.Content}");
             }
             return Task.CompletedTask;
         }
 
         private Task HandleFileStartAsync(FileStartMessage fileStart)
         {
-            Console.WriteLine($"[<] Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
-            FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
+            try
+            {
+                Console.WriteLine($"📥 Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
+                
+                // Crear ruta única para el archivo (evitar sobrescribir)
+                var fileName = fileStart.FileName;
+                var filePath = Path.Combine(_storageDirectory, fileName);
+                var counter = 1;
+                
+                while (File.Exists(filePath))
+                {
+                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                    var extension = Path.GetExtension(fileName);
+                    var newFileName = $"{nameWithoutExt}_{counter}{extension}";
+                    filePath = Path.Combine(_storageDirectory, newFileName);
+                    counter++;
+                }
+                
+                // Crear info de transferencia
+                var transferInfo = new FileTransferInfo(fileStart.TransferId, fileName, fileStart.FileSize, fileStart.SenderId);
+                transferInfo.FileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+                
+                _activeTransfers[fileStart.TransferId] = transferInfo;
+                
+                Console.WriteLine($"📤 Transferencia iniciada: {Path.GetFileName(filePath)}");
+                FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error iniciando transferencia: {ex.Message}");
+            }
+            
             return Task.CompletedTask;
         }
 
-        private Task HandleFileDataAsync(FileDataMessage fileData)
+        private async Task HandleFileDataAsync(FileDataMessage fileData)
         {
-            // En un cliente real, aquí almacenaríamos los datos del archivo
-            // Para el demo, solo mostramos el progreso
-            Console.WriteLine($"[D] Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes)");
-            return Task.CompletedTask;
+            try
+            {
+                if (_activeTransfers.TryGetValue(fileData.TransferId, out var transferInfo))
+                {
+                    // Verificar secuencia esperada
+                    if (fileData.SequenceNumber == transferInfo.ExpectedSequence)
+                    {
+                        // Escribir datos al archivo
+                        await transferInfo.FileStream!.WriteAsync(fileData.Data, 0, fileData.Data.Length);
+                        await transferInfo.FileStream.FlushAsync();
+                        
+                        transferInfo.ExpectedSequence++;
+                        transferInfo.BytesReceived += fileData.Data.Length;
+                        
+                        var progress = (double)transferInfo.BytesReceived / transferInfo.FileSize * 100;
+                        Console.WriteLine($"📦 Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes) - {progress:F1}%");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"⚠️ Chunk fuera de orden: esperado {transferInfo.ExpectedSequence}, recibido {fileData.SequenceNumber}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ Transferencia no encontrada: {fileData.TransferId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error escribiendo datos del archivo: {ex.Message}");
+            }
         }
 
         private Task HandleFileEndAsync(FileEndMessage fileEnd)
         {
-            if (fileEnd.Success)
+            try
             {
-                Console.WriteLine($"[OK] Transferencia completada: Transfer ID {fileEnd.TransferId}");
+                if (_activeTransfers.TryGetValue(fileEnd.TransferId, out var transferInfo))
+                {
+                    // Cerrar y liberar el archivo
+                    transferInfo.FileStream?.Dispose();
+                    
+                    if (fileEnd.Success)
+                    {
+                        var filePath = Path.Combine(_storageDirectory, transferInfo.FileName);
+                        Console.WriteLine($"✅ Transferencia completada: {transferInfo.FileName}");
+                        Console.WriteLine($"✅ Archivo guardado en: {filePath}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ Transferencia falló: {fileEnd.ErrorMessage}");
+                        
+                        // Eliminar archivo parcial si existe
+                        var filePath = Path.Combine(_storageDirectory, transferInfo.FileName);
+                        if (File.Exists(filePath))
+                        {
+                            try
+                            {
+                                File.Delete(filePath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"⚠️ No se pudo eliminar archivo parcial: {ex.Message}");
+                            }
+                        }
+                    }
+                    
+                    // Remover de transferencias activas
+                    _activeTransfers.Remove(fileEnd.TransferId);
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ Transferencia no encontrada para finalizar: {fileEnd.TransferId}");
+                }
+                
+                FileTransferCompleted?.Invoke(this, new FileTransferEventArgs(fileEnd.TransferId, ""));
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine($"[X] Transferencia fallo: {fileEnd.ErrorMessage}");
+                Console.WriteLine($"❌ Error finalizando transferencia: {ex.Message}");
             }
             
-            FileTransferCompleted?.Invoke(this, new FileTransferEventArgs(fileEnd.TransferId, ""));
             return Task.CompletedTask;
         }
 
@@ -444,7 +558,7 @@ namespace ChatClient.Core
 
         private Task HandleErrorAsync(ErrorMessage error)
         {
-            Console.WriteLine($"[X] Error del servidor: {error.ErrorDescription}");
+            Console.WriteLine($"❌ Error del servidor: {error.ErrorDescription}");
             return Task.CompletedTask;
         }
 
@@ -564,6 +678,30 @@ namespace ChatClient.Core
             writer.Write(errorBytes);
             
             return ms.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Información de transferencia de archivo en curso
+    /// </summary>
+    public class FileTransferInfo
+    {
+        public string TransferId { get; set; }
+        public string FileName { get; set; }
+        public long FileSize { get; set; }
+        public string SenderId { get; set; }
+        public FileStream? FileStream { get; set; }
+        public int ExpectedSequence { get; set; }
+        public long BytesReceived { get; set; }
+
+        public FileTransferInfo(string transferId, string fileName, long fileSize, string senderId)
+        {
+            TransferId = transferId;
+            FileName = fileName;
+            FileSize = fileSize;
+            SenderId = senderId;
+            ExpectedSequence = 0;
+            BytesReceived = 0;
         }
     }
 }

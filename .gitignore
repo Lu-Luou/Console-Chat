@@ -145,3 +145,7 @@ Icon?
 *.orig
 *.log
 *.vs/
+
+# Storage directory - track folder but not contents
+storage/*
+!storage/.gitkeep
