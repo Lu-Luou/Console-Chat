@@ -43,6 +43,11 @@ namespace ChatServer.Protocol
         /// <summary>
         /// Cliente se está desconectando
         /// </summary>
-        CLIENT_DISCONNECT = 0x08
+        CLIENT_DISCONNECT = 0x08,
+        
+        /// <summary>
+        /// Respuesta del servidor con el ID del cliente
+        /// </summary>
+        CLIENT_ID_RESPONSE = 0x09
     }
 }

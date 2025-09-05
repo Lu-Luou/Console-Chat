@@ -331,12 +331,12 @@ namespace ChatServer.Core
                 client.Name = connectMessage.ClientName;
                 Console.WriteLine($"👋 Cliente {connectMessage.SenderId} se identificó como: {connectMessage.ClientName}");
                 
-                // Notificar a otros clientes
-                var notification = new ChatMessage($"{connectMessage.ClientName} se ha conectado al chat", "")
+                // Enviar el ID del cliente de vuelta
+                var idResponse = new ClientIdResponseMessage(connectMessage.SenderId)
                 {
                     SenderId = "SERVER"
                 };
-                await BroadcastMessageAsync(notification, connectMessage.SenderId);
+                await client.SendMessageAsync(idResponse);
             }
         }
 
@@ -381,7 +381,7 @@ namespace ChatServer.Core
         /// <summary>
         /// Desconecta un cliente
         /// </summary>
-        private async Task DisconnectClientAsync(string clientId, string reason = "")
+        private Task DisconnectClientAsync(string clientId, string reason = "")
         {
             if (_clients.TryRemove(clientId, out var client))
             {
@@ -390,13 +390,10 @@ namespace ChatServer.Core
                 client.Disconnect();
                 ClientDisconnected?.Invoke(this, new ClientEventArgs(client));
                 
-                // Notificar a otros clientes
-                var notification = new ChatMessage($"{client.Name} se ha desconectado", "")
-                {
-                    SenderId = "SERVER"
-                };
-                await BroadcastMessageAsync(notification, clientId);
+                // Ya no notificamos a otros clientes sobre desconexiones
             }
+            
+            return Task.CompletedTask;
         }
 
         /// <summary>

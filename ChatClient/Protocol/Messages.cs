@@ -45,7 +45,12 @@ namespace ChatClient.Protocol
         /// <summary>
         /// Cliente se está desconectando
         /// </summary>
-        CLIENT_DISCONNECT = 0x08
+        CLIENT_DISCONNECT = 0x08,
+        
+        /// <summary>
+        /// Respuesta del servidor con el ID del cliente
+        /// </summary>
+        CLIENT_ID_RESPONSE = 0x09
     }
 
     /// <summary>
@@ -87,6 +92,7 @@ namespace ChatClient.Protocol
                 MessageType.ERROR => ErrorMessage.DeserializeError(data),
                 MessageType.CLIENT_CONNECT => ClientConnectMessage.DeserializeClientConnect(data),
                 MessageType.CLIENT_DISCONNECT => null, // No necesario en cliente
+                MessageType.CLIENT_ID_RESPONSE => ClientIdResponseMessage.DeserializeClientIdResponse(data),
                 _ => null
             };
         }
@@ -429,6 +435,65 @@ namespace ChatClient.Protocol
                 var sequenceNumber = reader.ReadInt32();
                 
                 return new AckMessage(transferId, sequenceNumber, targetId) 
+                { 
+                    SenderId = senderId 
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mensaje con la respuesta del ID del cliente
+    /// </summary>
+    public class ClientIdResponseMessage : Message
+    {
+        public string ClientId { get; set; }
+
+        public ClientIdResponseMessage(string clientId) : base(MessageType.CLIENT_ID_RESPONSE)
+        {
+            ClientId = clientId;
+        }
+
+        public override byte[] Serialize()
+        {
+            var senderBytes = Encoding.UTF8.GetBytes(SenderId);
+            var clientIdBytes = Encoding.UTF8.GetBytes(ClientId);
+            
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms);
+            
+            writer.Write((byte)Type);
+            writer.Write(senderBytes.Length);
+            writer.Write(senderBytes);
+            writer.Write(clientIdBytes.Length);
+            writer.Write(clientIdBytes);
+            
+            return ms.ToArray();
+        }
+
+        public static ClientIdResponseMessage? DeserializeClientIdResponse(byte[] data)
+        {
+            try
+            {
+                using var ms = new MemoryStream(data);
+                using var reader = new BinaryReader(ms);
+                
+                var type = (MessageType)reader.ReadByte();
+                if (type != MessageType.CLIENT_ID_RESPONSE) return null;
+                
+                var senderLength = reader.ReadInt32();
+                var senderBytes = reader.ReadBytes(senderLength);
+                var senderId = Encoding.UTF8.GetString(senderBytes);
+                
+                var clientIdLength = reader.ReadInt32();
+                var clientIdBytes = reader.ReadBytes(clientIdLength);
+                var clientId = Encoding.UTF8.GetString(clientIdBytes);
+                
+                return new ClientIdResponseMessage(clientId) 
                 { 
                     SenderId = senderId 
                 };

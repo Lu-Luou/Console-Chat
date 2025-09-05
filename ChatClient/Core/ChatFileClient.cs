@@ -405,6 +405,10 @@ namespace ChatClient.Core
                     case ErrorMessage error:
                         await HandleErrorAsync(error);
                         break;
+                    
+                    case ClientIdResponseMessage idResponse:
+                        await HandleClientIdResponseAsync(idResponse);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -415,6 +419,7 @@ namespace ChatClient.Core
 
         private Task HandleChatMessageAsync(ChatMessage chatMessage)
         {
+            ClearCurrentLine();
             if (chatMessage.SenderId == "SERVER")
             {
                 Console.WriteLine($"🔔 {chatMessage.Content}");
@@ -423,6 +428,7 @@ namespace ChatClient.Core
             {
                 Console.WriteLine($"💬 [{DateTime.Now:HH:mm:ss}] {chatMessage.SenderId}: {chatMessage.Content}");
             }
+            RestorePrompt();
             return Task.CompletedTask;
         }
 
@@ -430,6 +436,7 @@ namespace ChatClient.Core
         {
             try
             {
+                ClearCurrentLine();
                 Console.WriteLine($"📥 Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
                 
                 // Crear ruta única para el archivo (evitar sobrescribir)
@@ -454,10 +461,13 @@ namespace ChatClient.Core
                 
                 Console.WriteLine($"📤 Transferencia iniciada: {Path.GetFileName(filePath)}");
                 FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
+                RestorePrompt();
             }
             catch (Exception ex)
             {
+                ClearCurrentLine();
                 Console.WriteLine($"❌ Error iniciando transferencia: {ex.Message}");
+                RestorePrompt();
             }
             
             return Task.CompletedTask;
@@ -480,21 +490,29 @@ namespace ChatClient.Core
                         transferInfo.BytesReceived += fileData.Data.Length;
                         
                         var progress = (double)transferInfo.BytesReceived / transferInfo.FileSize * 100;
+                        ClearCurrentLine();
                         Console.WriteLine($"📦 Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes) - {progress:F1}%");
+                        RestorePrompt();
                     }
                     else
                     {
+                        ClearCurrentLine();
                         Console.WriteLine($"⚠️ Chunk fuera de orden: esperado {transferInfo.ExpectedSequence}, recibido {fileData.SequenceNumber}");
+                        RestorePrompt();
                     }
                 }
                 else
                 {
+                    ClearCurrentLine();
                     Console.WriteLine($"⚠️ Transferencia no encontrada: {fileData.TransferId}");
+                    RestorePrompt();
                 }
             }
             catch (Exception ex)
             {
+                ClearCurrentLine();
                 Console.WriteLine($"❌ Error escribiendo datos del archivo: {ex.Message}");
+                RestorePrompt();
             }
         }
 
@@ -507,6 +525,7 @@ namespace ChatClient.Core
                     // Cerrar y liberar el archivo
                     transferInfo.FileStream?.Dispose();
                     
+                    ClearCurrentLine();
                     if (fileEnd.Success)
                     {
                         var filePath = Path.Combine(_storageDirectory, transferInfo.FileName);
@@ -534,17 +553,22 @@ namespace ChatClient.Core
                     
                     // Remover de transferencias activas
                     _activeTransfers.Remove(fileEnd.TransferId);
+                    RestorePrompt();
                 }
                 else
                 {
+                    ClearCurrentLine();
                     Console.WriteLine($"⚠️ Transferencia no encontrada para finalizar: {fileEnd.TransferId}");
+                    RestorePrompt();
                 }
                 
                 FileTransferCompleted?.Invoke(this, new FileTransferEventArgs(fileEnd.TransferId, ""));
             }
             catch (Exception ex)
             {
+                ClearCurrentLine();
                 Console.WriteLine($"❌ Error finalizando transferencia: {ex.Message}");
+                RestorePrompt();
             }
             
             return Task.CompletedTask;
@@ -552,14 +576,60 @@ namespace ChatClient.Core
 
         private Task HandleAckAsync(AckMessage ack)
         {
+            ClearCurrentLine();
             Console.WriteLine($"✓ ACK recibido para chunk {ack.SequenceNumber}");
+            RestorePrompt();
             return Task.CompletedTask;
         }
 
         private Task HandleErrorAsync(ErrorMessage error)
         {
+            ClearCurrentLine();
             Console.WriteLine($"❌ Error del servidor: {error.ErrorDescription}");
+            RestorePrompt();
             return Task.CompletedTask;
+        }
+
+        private Task HandleClientIdResponseAsync(ClientIdResponseMessage idResponse)
+        {
+            ClearCurrentLine();
+            Console.WriteLine($"📋 Tu ID de cliente es: {idResponse.ClientId}");
+            Console.WriteLine($"💡 Comparte este ID para que otros puedan enviarte archivos");
+            RestorePrompt();
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Limpia la línea actual de la consola
+        /// </summary>
+        private static void ClearCurrentLine()
+        {
+            try
+            {
+                if (Console.CursorLeft > 0)
+                {
+                    Console.Write("\r" + new string(' ', Console.WindowWidth - 1) + "\r");
+                }
+            }
+            catch
+            {
+                // Ignorar errores de consola
+            }
+        }
+
+        /// <summary>
+        /// Restaura el prompt ">" después de mostrar un mensaje
+        /// </summary>
+        private static void RestorePrompt()
+        {
+            try
+            {
+                Console.Write("> ");
+            }
+            catch
+            {
+                // Ignorar errores de consola
+            }
         }
 
         private static string FormatBytes(long bytes)

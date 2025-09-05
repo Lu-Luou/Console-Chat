@@ -41,6 +41,7 @@ namespace ChatServer.Protocol
                 MessageType.ERROR => ErrorMessage.DeserializeError(data),
                 MessageType.CLIENT_CONNECT => ClientConnectMessage.DeserializeClientConnect(data),
                 MessageType.CLIENT_DISCONNECT => ClientDisconnectMessage.DeserializeClientDisconnect(data),
+                MessageType.CLIENT_ID_RESPONSE => ClientIdResponseMessage.DeserializeClientIdResponse(data),
                 _ => null
             };
         }
