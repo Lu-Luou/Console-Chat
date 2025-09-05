@@ -1,0 +1,14 @@
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.GeneratedMSBuildEditorConfig.editorconfig
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.AssemblyInfoInputs.cache
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.AssemblyInfo.cs
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.csproj.CoreCompileInputs.cache
+/home/magma/Desktop/Cpp/ChatClient/bin/Debug/net9.0/ChatClient
+/home/magma/Desktop/Cpp/ChatClient/bin/Debug/net9.0/ChatClient.deps.json
+/home/magma/Desktop/Cpp/ChatClient/bin/Debug/net9.0/ChatClient.runtimeconfig.json
+/home/magma/Desktop/Cpp/ChatClient/bin/Debug/net9.0/ChatClient.dll
+/home/magma/Desktop/Cpp/ChatClient/bin/Debug/net9.0/ChatClient.pdb
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.dll
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/refint/ChatClient.dll
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.pdb
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ChatClient.genruntimeconfig.cache
+/home/magma/Desktop/Cpp/ChatClient/obj/Debug/net9.0/ref/ChatClient.dll

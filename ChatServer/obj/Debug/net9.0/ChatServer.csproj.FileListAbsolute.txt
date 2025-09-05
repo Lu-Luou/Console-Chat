@@ -1,0 +1,14 @@
+/home/magma/Desktop/Cpp/ChatServer/bin/Debug/net9.0/ChatServer
+/home/magma/Desktop/Cpp/ChatServer/bin/Debug/net9.0/ChatServer.deps.json
+/home/magma/Desktop/Cpp/ChatServer/bin/Debug/net9.0/ChatServer.runtimeconfig.json
+/home/magma/Desktop/Cpp/ChatServer/bin/Debug/net9.0/ChatServer.dll
+/home/magma/Desktop/Cpp/ChatServer/bin/Debug/net9.0/ChatServer.pdb
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.GeneratedMSBuildEditorConfig.editorconfig
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.AssemblyInfoInputs.cache
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.AssemblyInfo.cs
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.csproj.CoreCompileInputs.cache
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.dll
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/refint/ChatServer.dll
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.pdb
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ChatServer.genruntimeconfig.cache
+/home/magma/Desktop/Cpp/ChatServer/obj/Debug/net9.0/ref/ChatServer.dll
