@@ -1,8 +1,8 @@
-# 🚀 Servidor de Chat y Transferencia de Archivos
+# Servidor de Chat y Transferencia de Archivos
 
 Un servidor TCP en C# que permite chat en tiempo real y transferencia de archivos entre múltiples clientes conectados.
 
-## 🎯 Características
+## Características
 
 - **Chat en tiempo real** - Mensajes públicos y privados
 - **Transferencia de archivos** - Envío de archivos entre clientes
@@ -12,7 +12,7 @@ Un servidor TCP en C# que permite chat en tiempo real y transferencia de archivo
 - **Manejo de errores** - Reconexiones y recuperación automática
 - **Confirmaciones ACK** - Garantía de entrega de archivos
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ### Protocolo de Comunicación
 
@@ -57,7 +57,7 @@ sequenceDiagram
     S->>CB: FILE_END
 ```
 
-## 🚀 Compilación y Ejecución
+## Compilación y Ejecución
 
 ### Prerrequisitos
 
@@ -92,7 +92,7 @@ cd ChatClient
 dotnet run
 ```
 
-## 📖 Uso
+## Uso
 
 ### Comandos del Servidor
 
@@ -157,7 +157,7 @@ En el cliente, puedes usar:
    Alice> /file <bob_id> documento.txt
 ```
 
-## 🔧 Configuración
+## Configuración
 
 ### Servidor
 
@@ -173,7 +173,7 @@ En el cliente, puedes usar:
 - **Reintentos de conexión:** Automático
 - **Pausa entre chunks:** 10ms
 
-## 🛡️ Manejo de Errores
+## Manejo de Errores
 
 ### Desconexiones
 
@@ -188,7 +188,7 @@ En el cliente, puedes usar:
 - **Secuencia:** Verificación de orden en chunks
 - **Timeout:** Limpieza automática de transferencias expiradas
 
-## 🔒 Seguridad y Limitaciones
+## Seguridad y Limitaciones
 
 ### Características de Seguridad
 
@@ -214,7 +214,7 @@ En el cliente, puedes usar:
 - [ ] Limitación de velocidad
 - [ ] Salas de chat separadas
 
-## 🐛 Resolución de Problemas
+## Resolución de Problemas
 
 ### Problemas Comunes
 
@@ -247,7 +247,7 @@ El servidor y cliente muestran logs detallados en consola:
 ❌ Error: Cliente desconectado
 ```
 
-## 📝 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```txt
 ChatServer/
@@ -273,7 +273,7 @@ ChatClient/
 └── Program.cs                # Punto de entrada
 ```
 
-## 🤝 Contribuciones
+## Contribuciones
 
 Las contribuciones son bienvenidas! Por favor:
 
@@ -282,11 +282,3 @@ Las contribuciones son bienvenidas! Por favor:
 3. Commit tus cambios (`git commit -am 'Agregar nueva característica'`)
 4. Push a la rama (`git push origin feature/nueva-caracteristica`)
 5. Crea un Pull Request
-
-## 📄 Licencia
-
-Este proyecto está bajo la licencia MIT. Ver archivo `LICENSE` para más detalles.
-
-## 👨‍💻 Autor
-
-Desarrollado como ejemplo de servidor TCP multihilo en C# con protocolo personalizado para chat y transferencia de archivos.

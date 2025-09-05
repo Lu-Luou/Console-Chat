@@ -1,10 +1,10 @@
-# 🎉 Proyecto Completado: Servidor de Chat y Transferencia de Archivos en C-sharp
+# Proyecto Completado: Servidor de Chat y Transferencia de Archivos en C-sharp
 
-## ✅ Resumen de Implementación
+## Resumen de Implementación
 
 He creado exitosamente un **servidor completo de chat y transferencia de archivos** en C# que cumple con todos los requisitos especificados:
 
-### 🚀 Características Implementadas
+### Características Implementadas
 
 #### 1. **Protocolo de Comunicación Propio** ✅
 
@@ -62,7 +62,7 @@ Cliente A                Servidor                Cliente B
     |                       |-- FILE_END ---------->|
 ```
 
-### 🏗️ Estructura del Proyecto
+### Estructura del Proyecto
 
 ```txt
 chat.sln                    # Solución de Visual Studio
@@ -90,7 +90,7 @@ chat.sln                    # Solución de Visual Studio
 └── test_demo.sh           # Script de demostración
 ```
 
-### 🎯 Casos de Uso Implementados
+### Casos de Uso Implementados
 
 1. **Chat Público**: Mensajes broadcast a todos los clientes
 2. **Chat Privado**: Mensajes dirigidos por ID de cliente
@@ -98,7 +98,7 @@ chat.sln                    # Solución de Visual Studio
 4. **Notificaciones**: Conexión/desconexión de usuarios
 5. **Administración**: Estadísticas y gestión del servidor
 
-### 🔧 Configuración y Uso
+### Configuración y Uso
 
 #### Compilar y Ejecutar
 
@@ -128,7 +128,7 @@ cd ChatClient && dotnet run
 - `clients` - Clientes conectados
 - `quit` - Detener servidor
 
-### 🛡️ Características de Seguridad
+### Características de Seguridad
 
 - **Validación de tamaño** de mensajes (máx 10MB)
 - **Verificación de secuencia** en chunks
@@ -136,7 +136,7 @@ cd ChatClient && dotnet run
 - **Manejo de buffer overflow** prevention
 - **Limpieza automática** de recursos
 
-### 📈 Rendimiento y Escalabilidad
+### Rendimiento y Escalabilidad
 
 - **Concurrencia real** con múltiples hilos
 - **Operaciones no bloqueantes** asíncronas
@@ -144,7 +144,7 @@ cd ChatClient && dotnet run
 - **Cleanup automático** de conexiones muertas
 - **Pool de threads** para escalabilidad
 
-### 🧪 Estado de Pruebas
+### Estado de Pruebas
 
 ✅ **Servidor funcionando** correctamente en puerto 8888
 ✅ **Cliente conectándose** exitosamente
@@ -153,7 +153,7 @@ cd ChatClient && dotnet run
 ✅ **Manejo de errores** robusto
 ✅ **Documentación completa** incluida
 
-## 🎯 Cumplimiento de Requisitos
+## Cumplimiento de Requisitos
 
 | Requisito | Estado | Detalles |
 |-----------|--------|----------|
@@ -164,7 +164,7 @@ cd ChatClient && dotnet run
 | Manejo de errores | ✅ | Reconexiones + timeouts |
 | Transferencia segura | ✅ | Chunks + ACK + verificación |
 
-## 🚀 Listo para Usar
+## Listo para Usar
 
 El proyecto está **completamente funcional** y listo para usar. Incluye:
 
