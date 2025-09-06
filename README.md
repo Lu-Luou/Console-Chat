@@ -92,6 +92,12 @@ cd ChatClient
 dotnet run
 ```
 
+### Nueva release
+
+```bash
+dotnet publish -c Release -r win-x64 --self-contained true # win-x64 / linux-x64
+```
+
 ## Uso
 
 ### Comandos del Servidor
