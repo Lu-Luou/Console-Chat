@@ -206,13 +206,11 @@ En el cliente, puedes usar:
 
 ### Mejoras Futuras
 
-- [ ] Autenticación con contraseñas
 - [ ] Encriptación TLS/SSL
-- [ ] Base de datos para historial
+- [ ] Base de datos para historial temporal
 - [ ] Interfaz web/GUI
 - [ ] Compresión de archivos
 - [ ] Limitación de velocidad
-- [ ] Salas de chat separadas
 
 ## Resolución de Problemas
 
@@ -227,7 +225,7 @@ En el cliente, puedes usar:
 
 1. **"No se puede conectar"**
    - Verificar que el servidor esté ejecutándose
-   - Verificar firewall/antivirus
+   - Verificar firewall
    - Comprobar IP y puerto correctos
 
 1. **"Transferencia falló"**
@@ -273,7 +271,7 @@ ChatClient/
 └── Program.cs                # Punto de entrada
 ```
 
-## Contribuciones
+## Contribuciones (tal vez las vea)
 
 Las contribuciones son bienvenidas! Por favor:
 
