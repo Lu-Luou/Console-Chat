@@ -258,12 +258,14 @@ namespace ChatClient
 
         private static void OnFileTransferStarted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"[>] Transferencia iniciada: {e.FileName}");
+            // Los mensajes de inicio ya se muestran en el cliente, evitar duplicados
+            // Console.WriteLine($"[>] Transferencia iniciada: {e.FileName}");
         }
 
         private static void OnFileTransferCompleted(object? sender, FileTransferEventArgs e)
         {
-            Console.WriteLine($"[OK] Transferencia completada: {e.FileName}");
+            // Los mensajes de finalización ya se muestran en el cliente con mejor formato
+            // Console.WriteLine($"[OK] Transferencia completada: {e.FileName}");
         }
 
         private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)

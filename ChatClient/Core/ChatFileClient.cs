@@ -221,11 +221,11 @@ namespace ChatClient.Core
                     totalBytesSent += bytesRead;
                     sequenceNumber++;
                     
-                    // Mostrar progreso cada 10% o cada 100 chunks
+                    // Mostrar barra de progreso cada pocos chunks
                     var progress = (double)totalBytesSent / actualFileSize * 100;
-                    if (sequenceNumber % 100 == 0 || progress >= lastProgressShown + 10)
+                    if (sequenceNumber % 50 == 0 || progress >= lastProgressShown + 5)
                     {
-                        Console.WriteLine($"[>>>] Enviando: {progress:F1}% completado ({FormatBytes(totalBytesSent)}/{FormatBytes(actualFileSize)})");
+                        ShowProgressBar("⬆", actualFileName, progress, totalBytesSent, actualFileSize);
                         lastProgressShown = progress;
                     }
                     
@@ -236,6 +236,9 @@ namespace ChatClient.Core
                 // Enviar mensaje de fin
                 var fileEnd = new FileEndMessage(fileStart.TransferId, targetClientId, true);
                 await SendMessageAsync(fileEnd);
+
+                // Limpiar barra de progreso
+                ClearProgressBar();
 
                 // Limpiar archivo temporal si se creó
                 if (isCompressed && actualFilePath != filePath)
@@ -564,12 +567,10 @@ namespace ChatClient.Core
                         
                         var progress = (double)transferInfo.BytesReceived / transferInfo.FileSize * 100;
                         
-                        // Mostrar progreso solo cada 10% o cada 100 chunks para reducir spam
-                        if (fileData.SequenceNumber % 100 == 0 || progress >= transferInfo.LastProgressShown + 10)
+                        // Mostrar barra de progreso cada pocos chunks para suavizar la experiencia
+                        if (fileData.SequenceNumber % 50 == 0 || progress >= transferInfo.LastProgressShown + 5)
                         {
-                            ClearCurrentLine();
-                            Console.WriteLine($"[PKG] Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes) - {progress:F1}%");
-                            RestorePrompt();
+                            ShowProgressBar("⬇", transferInfo.FileName, progress, transferInfo.BytesReceived, transferInfo.FileSize);
                             transferInfo.LastProgressShown = progress;
                         }
                     }
@@ -630,7 +631,8 @@ namespace ChatClient.Core
                         }
                     }
                     
-                    // Remover de transferencias activas
+                    // Limpiar barra de progreso y remover de transferencias activas
+                    ClearProgressBar();
                     _activeTransfers.Remove(fileEnd.TransferId);
                     RestorePrompt();
                 }
@@ -655,9 +657,13 @@ namespace ChatClient.Core
 
         private Task HandleAckAsync(AckMessage ack)
         {
-            ClearCurrentLine();
-            Console.WriteLine($"[ACK] ACK recibido para chunk {ack.SequenceNumber}");
-            RestorePrompt();
+            // Los ACK se procesan silenciosamente para no hacer spam en la consola
+            // Solo mostrar ACK si hay problemas o cada cierto número de chunks
+            if (ack.SequenceNumber % 200 == 0)
+            {
+                // Mostrar confirmación ocasional sin interrumpir
+                ShowProgressBar("✓", "ACK", 0, ack.SequenceNumber, ack.SequenceNumber);
+            }
             return Task.CompletedTask;
         }
 
@@ -704,6 +710,84 @@ namespace ChatClient.Core
             try
             {
                 Console.Write("> ");
+            }
+            catch
+            {
+                // Ignorar errores de consola
+            }
+        }
+
+        /// <summary>
+        /// Muestra una barra de progreso sin interrumpir el prompt del usuario
+        /// </summary>
+        private static void ShowProgressBar(string operation, string fileName, double progress, long bytesProcessed, long totalBytes)
+        {
+            try
+            {
+                // Guardar posición actual del cursor
+                var currentLeft = Console.CursorLeft;
+                var currentTop = Console.CursorTop;
+                
+                // Solo mostrar si hay espacio suficiente
+                if (currentTop <= 0) return;
+                
+                // Ir a una línea arriba para mostrar el progreso
+                Console.SetCursorPosition(0, currentTop - 1);
+                
+                // Limpiar la línea completa
+                Console.Write(new string(' ', Math.Min(Console.WindowWidth - 1, 100)));
+                Console.SetCursorPosition(0, currentTop - 1);
+                
+                // Crear barra de progreso visual más compacta
+                var barWidth = Math.Min(20, Console.WindowWidth / 4);
+                var completedWidth = Math.Max(0, (int)(progress / 100.0 * barWidth));
+                var progressBar = "[" + new string('█', completedWidth) + new string('░', barWidth - completedWidth) + "]";
+                
+                // Nombre de archivo más corto
+                var shortFileName = fileName.Length > 25 ? fileName.Substring(0, 22) + "..." : fileName;
+                
+                // Mostrar información de progreso compacta
+                var progressInfo = $"{operation} {shortFileName} {progressBar} {progress:F1}%";
+                
+                // Asegurar que no excede el ancho de consola
+                if (progressInfo.Length > Console.WindowWidth - 1)
+                {
+                    progressInfo = progressInfo.Substring(0, Console.WindowWidth - 4) + "...";
+                }
+                
+                Console.Write(progressInfo);
+                
+                // Restaurar posición del cursor exacta
+                Console.SetCursorPosition(currentLeft, currentTop);
+            }
+            catch
+            {
+                // Ignorar errores de consola en caso de problemas con el terminal
+            }
+        }
+
+        /// <summary>
+        /// Limpia la barra de progreso
+        /// </summary>
+        private static void ClearProgressBar()
+        {
+            try
+            {
+                // Guardar posición actual del cursor
+                var currentLeft = Console.CursorLeft;
+                var currentTop = Console.CursorTop;
+                
+                // Solo limpiar si hay espacio suficiente
+                if (currentTop <= 0) return;
+                
+                // Ir a una línea arriba para limpiar el progreso
+                Console.SetCursorPosition(0, currentTop - 1);
+                
+                // Limpiar la línea completa
+                Console.Write(new string(' ', Math.Min(Console.WindowWidth - 1, 100)));
+                
+                // Restaurar posición del cursor exacta
+                Console.SetCursorPosition(currentLeft, currentTop);
             }
             catch
             {
