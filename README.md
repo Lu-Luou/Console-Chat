@@ -163,6 +163,10 @@ En el cliente, puedes usar:
    Alice> /file <bob_id> documento.txt
 ```
 
+### Extensiones soportadas (por ahora hasta que pueda ver que no hayan tantos conflictos, como archivos .dll)
+
+- .txt, .md, .json, .xml, .csv, .log, .cs, .js, .ts, .py, .java, .cpp, .c, .h, .html, .css, .sql, .jpg, .jpeg, .png, .gif, .bmp, .webp, .svg, .ico, .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .odt, .ods, .odp, .mp3, .wav, .ogg, .m4a, .mp4, .avi, .mkv, .mov, .wmv, .flv, .zip, .rar, .7z, .tar, .gz, .bz2, .xz, .tar.gz, .tar.bz2, .tar.xz, .exe, .msi, .dmg, .deb, .rpm, .apk, .iso
+
 ## Configuración
 
 ### Servidor
