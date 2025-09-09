@@ -80,7 +80,7 @@ namespace ChatServer.Core
                 }
 
                 int messageLength = BitConverter.ToInt32(lengthBytes, 0);
-                if (messageLength <= 0 || messageLength > 10 * 1024 * 1024) // Máximo 10MB
+                if (messageLength <= 0 || messageLength > 100 * 1024 * 1024) // Máximo 100MB
                 {
                     throw new InvalidDataException($"Tamaño de mensaje inválido: {messageLength}");
                 }

@@ -19,6 +19,21 @@ namespace ChatServer.Core
         {
             try
             {
+                // Validar tamaño de archivo (máximo 100MB)
+                const long maxFileSize = 100 * 1024 * 1024; // 100MB
+                if (fileStart.FileSize > maxFileSize)
+                {
+                    Console.WriteLine($"[ERR] Archivo rechazado: {fileStart.FileName} excede el límite de {FormatBytes(maxFileSize)}");
+                    return false;
+                }
+
+                // Validar tipo de archivo
+                if (!IsValidFileType(fileStart.FileName))
+                {
+                    Console.WriteLine($"[ERR] Tipo de archivo no permitido: {fileStart.FileName}");
+                    return false;
+                }
+
                 var transfer = new FileTransfer
                 {
                     TransferId = fileStart.TransferId,
@@ -182,6 +197,64 @@ namespace ChatServer.Core
                 ActiveTransfers = _activeTransfers.Count,
                 TotalDataTransferred = _totalCompletedBytes + activeBytes
             };
+        }
+
+        /// <summary>
+        /// Valida si el tipo de archivo está permitido
+        /// </summary>
+        private static bool IsValidFileType(string fileName)
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            var supportedExtensions = GetSupportedExtensions();
+            return supportedExtensions.Contains(extension);
+        }
+
+        /// <summary>
+        /// Obtiene la lista de extensiones de archivo soportadas
+        /// </summary>
+        private static HashSet<string> GetSupportedExtensions()
+        {
+            return new HashSet<string>
+            {
+                // Archivos de texto
+                ".txt", ".md", ".json", ".xml", ".csv", ".log",
+                
+                // Archivos de código
+                ".cs", ".js", ".ts", ".py", ".java", ".cpp", ".c", ".h", ".html", ".css", ".sql",
+                
+                // Archivos de imagen
+                ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico",
+                
+                // Archivos de documento
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp",
+                
+                // Archivos de audio/video
+                ".mp3", ".wav", ".ogg", ".m4a", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",
+                
+                // Archivos comprimidos
+                ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tar.bz2", ".tar.xz",
+                
+                // Otros archivos comunes
+                ".exe", ".msi", ".dmg", ".deb", ".rpm", ".apk", ".iso"
+            };
+        }
+
+        /// <summary>
+        /// Formatea bytes en una representación legible
+        /// </summary>
+        private static string FormatBytes(long bytes)
+        {
+            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+            int counter = 0;
+            decimal number = bytes;
+            
+            while (Math.Round(number / 1024) >= 1)
+            {
+                number /= 1024;
+                counter++;
+            }
+            
+            return $"{number:n1} {suffixes[counter]}";
         }
     }
 

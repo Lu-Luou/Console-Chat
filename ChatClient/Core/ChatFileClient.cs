@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.IO.Compression;
 using ChatClient.Protocol;
 
 namespace ChatClient.Core
@@ -127,25 +128,76 @@ namespace ChatClient.Core
                 if (!File.Exists(filePath)) return false;
 
                 var fileInfo = new FileInfo(filePath);
-                var fileName = fileInfo.Name;
-                var fileSize = fileInfo.Length;
+                var originalFileName = fileInfo.Name;
+                var originalFileSize = fileInfo.Length;
 
-                Console.WriteLine($"[>>>] Enviando archivo: {fileName} ({FormatBytes(fileSize)}) a cliente {targetClientId}");
+                // Validar tamaño de archivo (máximo 100MB)
+                const long maxFileSize = 100 * 1024 * 1024; // 100MB
+                if (originalFileSize > maxFileSize)
+                {
+                    Console.WriteLine($"[ERR] El archivo es demasiado grande. Máximo permitido: {FormatBytes(maxFileSize)}");
+                    return false;
+                }
+
+                // Validar tipo de archivo
+                if (!IsValidFileType(originalFileName))
+                {
+                    Console.WriteLine($"[ERR] Tipo de archivo no permitido. Extensiones soportadas: {string.Join(", ", GetSupportedExtensions())}");
+                    return false;
+                }
+
+                string actualFilePath = filePath;
+                string actualFileName = originalFileName;
+                long actualFileSize = originalFileSize;
+                bool isCompressed = false;
+
+                // Comprimir automáticamente archivos > 10MB que no sean ya comprimidos
+                const long compressionThreshold = 10 * 1024 * 1024; // 10MB
+                if (originalFileSize > compressionThreshold && !IsAlreadyCompressed(originalFileName))
+                {
+                    Console.WriteLine($"[>>>] Comprimiendo archivo grande: {originalFileName} ({FormatBytes(originalFileSize)})...");
+                    
+                    var compressedPath = await CompressFileAsync(filePath);
+                    if (compressedPath != null)
+                    {
+                        actualFilePath = compressedPath;
+                        actualFileName = Path.GetFileName(compressedPath);
+                        actualFileSize = new FileInfo(compressedPath).Length;
+                        isCompressed = true;
+                        
+                        var compressionRatio = ((double)(originalFileSize - actualFileSize) / originalFileSize) * 100;
+                        Console.WriteLine($"[OK] Archivo comprimido: {actualFileName} ({FormatBytes(actualFileSize)}) - Reducción: {compressionRatio:F1}%");
+                    }
+                    else
+                    {
+                        Console.WriteLine("[WARN] No se pudo comprimir el archivo, enviando original...");
+                    }
+                }
+
+                Console.WriteLine($"[>>>] Enviando archivo: {actualFileName} ({FormatBytes(actualFileSize)}) a cliente {targetClientId}");
 
                 // Enviar mensaje de inicio
-                var fileStart = new FileStartMessage(fileName, fileSize, targetClientId);
+                var fileStart = new FileStartMessage(actualFileName, actualFileSize, targetClientId);
                 if (!await SendMessageAsync(fileStart))
                 {
                     Console.WriteLine("[ERR] Error enviando mensaje FILE_START");
+                    
+                    // Limpiar archivo temporal si se creó
+                    if (isCompressed && actualFilePath != filePath)
+                    {
+                        try { File.Delete(actualFilePath); } catch { }
+                    }
                     return false;
                 }
 
                 // Leer y enviar archivo en chunks
                 const int chunkSize = 8192;
-                using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+                using var fileStream = new FileStream(actualFilePath, FileMode.Open, FileAccess.Read);
                 var buffer = new byte[chunkSize];
                 int sequenceNumber = 0;
                 int bytesRead;
+                long totalBytesSent = 0;
+                double lastProgressShown = 0;
 
                 while ((bytesRead = await fileStream.ReadAsync(buffer, 0, chunkSize)) > 0)
                 {
@@ -157,10 +209,25 @@ namespace ChatClient.Core
                     if (!await SendMessageAsync(fileData))
                     {
                         Console.WriteLine($"[ERR] Error enviando chunk {sequenceNumber}");
+                        
+                        // Limpiar archivo temporal si se creó
+                        if (isCompressed && actualFilePath != filePath)
+                        {
+                            try { File.Delete(actualFilePath); } catch { }
+                        }
                         return false;
                     }
 
+                    totalBytesSent += bytesRead;
                     sequenceNumber++;
+                    
+                    // Mostrar progreso cada 10% o cada 100 chunks
+                    var progress = (double)totalBytesSent / actualFileSize * 100;
+                    if (sequenceNumber % 100 == 0 || progress >= lastProgressShown + 10)
+                    {
+                        Console.WriteLine($"[>>>] Enviando: {progress:F1}% completado ({FormatBytes(totalBytesSent)}/{FormatBytes(actualFileSize)})");
+                        lastProgressShown = progress;
+                    }
                     
                     // Pequeña pausa para no saturar la red
                     await Task.Delay(10);
@@ -170,7 +237,13 @@ namespace ChatClient.Core
                 var fileEnd = new FileEndMessage(fileStart.TransferId, targetClientId, true);
                 await SendMessageAsync(fileEnd);
 
-                Console.WriteLine($"[OK] Archivo enviado: {fileName}");
+                // Limpiar archivo temporal si se creó
+                if (isCompressed && actualFilePath != filePath)
+                {
+                    try { File.Delete(actualFilePath); } catch { }
+                }
+
+                Console.WriteLine($"[OK] Archivo enviado: {actualFileName}");
                 return true;
             }
             catch (Exception ex)
@@ -258,7 +331,7 @@ namespace ChatClient.Core
                 }
 
                 int messageLength = BitConverter.ToInt32(lengthBytes, 0);
-                if (messageLength <= 0 || messageLength > 10 * 1024 * 1024)
+                if (messageLength <= 0 || messageLength > 100 * 1024 * 1024) // Máximo 100MB
                 {
                     throw new InvalidDataException($"Tamaño de mensaje inválido: {messageLength}");
                 }
@@ -490,9 +563,15 @@ namespace ChatClient.Core
                         transferInfo.BytesReceived += fileData.Data.Length;
                         
                         var progress = (double)transferInfo.BytesReceived / transferInfo.FileSize * 100;
-                        ClearCurrentLine();
-                        Console.WriteLine($"[PKG] Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes) - {progress:F1}%");
-                        RestorePrompt();
+                        
+                        // Mostrar progreso solo cada 10% o cada 100 chunks para reducir spam
+                        if (fileData.SequenceNumber % 100 == 0 || progress >= transferInfo.LastProgressShown + 10)
+                        {
+                            ClearCurrentLine();
+                            Console.WriteLine($"[PKG] Recibido chunk {fileData.SequenceNumber} ({fileData.Data.Length} bytes) - {progress:F1}%");
+                            RestorePrompt();
+                            transferInfo.LastProgressShown = progress;
+                        }
                     }
                     else
                     {
@@ -646,6 +725,92 @@ namespace ChatClient.Core
             
             return $"{number:n1} {suffixes[counter]}";
         }
+
+        /// <summary>
+        /// Valida si el tipo de archivo está permitido
+        /// </summary>
+        private static bool IsValidFileType(string fileName)
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            var supportedExtensions = GetSupportedExtensions();
+            return supportedExtensions.Contains(extension);
+        }
+
+        /// <summary>
+        /// Obtiene la lista de extensiones de archivo soportadas
+        /// </summary>
+        private static HashSet<string> GetSupportedExtensions()
+        {
+            return new HashSet<string>
+            {
+                // Archivos de texto
+                ".txt", ".md", ".json", ".xml", ".csv", ".log",
+                
+                // Archivos de código
+                ".cs", ".js", ".ts", ".py", ".java", ".cpp", ".c", ".h", ".html", ".css", ".sql",
+                
+                // Archivos de imagen
+                ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".ico",
+                
+                // Archivos de documento
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp",
+                
+                // Archivos de audio/video
+                ".mp3", ".wav", ".ogg", ".m4a", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",
+                
+                // Archivos comprimidos
+                ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tar.bz2", ".tar.xz",
+                
+                // Otros archivos comunes
+                ".exe", ".msi", ".dmg", ".deb", ".rpm", ".apk", ".iso"
+            };
+        }
+
+        /// <summary>
+        /// Verifica si un archivo ya está comprimido
+        /// </summary>
+        private static bool IsAlreadyCompressed(string fileName)
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            var compressedExtensions = new HashSet<string>
+            {
+                ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", 
+                ".tar.gz", ".tar.bz2", ".tar.xz", ".jpg", ".jpeg", 
+                ".png", ".gif", ".mp3", ".mp4", ".avi", ".mkv", ".pdf"
+            };
+            return compressedExtensions.Contains(extension);
+        }
+
+        /// <summary>
+        /// Comprime un archivo usando ZIP
+        /// </summary>
+        private async Task<string?> CompressFileAsync(string filePath)
+        {
+            try
+            {
+                var originalFileName = Path.GetFileName(filePath);
+                var tempDir = Path.Combine(Path.GetTempPath(), "ChatClient_Temp");
+                Directory.CreateDirectory(tempDir);
+                
+                var compressedPath = Path.Combine(tempDir, $"{Path.GetFileNameWithoutExtension(originalFileName)}.zip");
+                
+                await Task.Run(() =>
+                {
+                    using var archive = ZipFile.Open(compressedPath, ZipArchiveMode.Create);
+                    var entry = archive.CreateEntry(originalFileName, CompressionLevel.Optimal);
+                    using var entryStream = entry.Open();
+                    using var fileStream = File.OpenRead(filePath);
+                    fileStream.CopyTo(entryStream);
+                });
+                
+                return compressedPath;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARN] Error comprimiendo archivo: {ex.Message}");
+                return null;
+            }
+        }
     }
 
     // Event args
@@ -763,6 +928,7 @@ namespace ChatClient.Core
         public FileStream? FileStream { get; set; }
         public int ExpectedSequence { get; set; }
         public long BytesReceived { get; set; }
+        public double LastProgressShown { get; set; }
 
         public FileTransferInfo(string transferId, string fileName, long fileSize, string senderId)
         {
@@ -772,6 +938,7 @@ namespace ChatClient.Core
             SenderId = senderId;
             ExpectedSequence = 0;
             BytesReceived = 0;
+            LastProgressShown = 0;
         }
     }
 }
