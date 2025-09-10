@@ -42,6 +42,9 @@ namespace ChatServer.Protocol
                 MessageType.CLIENT_CONNECT => ClientConnectMessage.DeserializeClientConnect(data),
                 MessageType.CLIENT_DISCONNECT => ClientDisconnectMessage.DeserializeClientDisconnect(data),
                 MessageType.CLIENT_ID_RESPONSE => ClientIdResponseMessage.DeserializeClientIdResponse(data),
+                MessageType.DOWNLOAD_ACCEPT => DownloadAcceptMessage.DeserializeDownloadAccept(data),
+                MessageType.DOWNLOAD_REJECT => DownloadRejectMessage.DeserializeDownloadReject(data),
+                MessageType.UPLOAD_CONFIRMED => UploadConfirmedMessage.DeserializeUploadConfirmed(data),
                 _ => null
             };
         }

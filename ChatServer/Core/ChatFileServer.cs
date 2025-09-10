@@ -206,6 +206,14 @@ namespace ChatServer.Core
                         await HandleClientDisconnectAsync(disconnectMessage);
                         break;
                     
+                    case DownloadAcceptMessage acceptMessage:
+                        await HandleDownloadAcceptAsync(acceptMessage);
+                        break;
+                    
+                    case DownloadRejectMessage rejectMessage:
+                        await HandleDownloadRejectAsync(rejectMessage);
+                        break;
+                    
                     default:
                         Console.WriteLine($"[WARN] Tipo de mensaje desconocido: {message.Type}");
                         break;
@@ -439,6 +447,37 @@ namespace ChatServer.Core
         public List<ConnectedClient> GetConnectedClients()
         {
             return _clients.Values.ToList();
+        }
+
+        /// <summary>
+        /// Maneja la aceptación de una descarga
+        /// </summary>
+        private async Task HandleDownloadAcceptAsync(DownloadAcceptMessage acceptMessage)
+        {
+            Console.WriteLine($"✅ Cliente {GetClientName(acceptMessage.SenderId)} aceptó la descarga: {acceptMessage.TransferId}");
+            
+            if (_fileTransferManager.ConfirmTransfer(acceptMessage.TransferId))
+            {
+                // Obtener información de la transferencia para notificar al emisor
+                var transfer = _fileTransferManager.GetTransfer(acceptMessage.TransferId);
+                if (transfer != null)
+                {
+                    // Enviar confirmación al emisor para que comience a enviar datos
+                    var confirmMessage = new UploadConfirmedMessage(acceptMessage.TransferId) { SenderId = "server" };
+                    await SendMessageToClientAsync(transfer.SenderId, confirmMessage);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Maneja el rechazo de una descarga
+        /// </summary>
+        private Task HandleDownloadRejectAsync(DownloadRejectMessage rejectMessage)
+        {
+            Console.WriteLine($"❌ Cliente {GetClientName(rejectMessage.SenderId)} rechazó la descarga: {rejectMessage.TransferId}");
+            
+            _fileTransferManager.RejectTransfer(rejectMessage.TransferId);
+            return Task.CompletedTask;
         }
     }
 

@@ -111,6 +111,11 @@ namespace ChatClient
                 "/file" or "/f" => Task.Run(() => Console.WriteLine("[X] Uso: /file <cliente_id> <ruta_archivo>")),
                 "/create" or "/c" when parts.Length >= 2 => CreateTestFileAsync(parts[1]),
                 "/create" or "/c" => Task.Run(() => Console.WriteLine("[X] Uso: /create <nombre_archivo>")),
+                "/downloads" or "/dl" => Task.Run(() => _client?.ShowPendingDownloads()),
+                "/download" when parts.Length >= 2 && int.TryParse(parts[1], out int downloadId) => Task.Run(() => _client?.AcceptDownload(downloadId)),
+                "/download" => Task.Run(() => Console.WriteLine("[X] Uso: /download <id>")),
+                "/reject" when parts.Length >= 2 && int.TryParse(parts[1], out int rejectId) => Task.Run(() => _client?.RejectDownload(rejectId)),
+                "/reject" => Task.Run(() => Console.WriteLine("[X] Uso: /reject <id>")),
                 _ when !input.StartsWith("/") => _client.SendChatMessageAsync(input),
                 _ => Task.Run(() => Console.WriteLine($"[?] Comando desconocido: {command}. Escribe /help para ver comandos disponibles."))
             });
@@ -182,18 +187,33 @@ namespace ChatClient
         private static void ShowHelp()
         {
             Console.WriteLine("[HELP] Comandos Disponibles:");
-            Console.WriteLine("-".PadRight(30, '-'));
+            Console.WriteLine("-".PadRight(40, '-'));
+            
+            Console.WriteLine("MENSAJERIA:");
             Console.WriteLine("  <mensaje>                    - Enviar mensaje publico");
             Console.WriteLine("  /send <id> <mensaje>         - Enviar mensaje privado");
+            Console.WriteLine();
+            
+            Console.WriteLine("ARCHIVOS:");
             Console.WriteLine("  /file <id> <archivo>         - Enviar archivo");
+            Console.WriteLine("  /downloads                   - Ver peticiones pendientes");
+            Console.WriteLine("  /download <id>               - Aceptar descarga");
+            Console.WriteLine("  /reject <id>                 - Rechazar descarga");
+            Console.WriteLine();
+            
+            Console.WriteLine("UTILIDADES:");
             Console.WriteLine("  /create <nombre>             - Crear archivo de prueba");
             Console.WriteLine("  /help                        - Mostrar esta ayuda");
             Console.WriteLine("  /quit                        - Salir del cliente");
             Console.WriteLine();
+            
             Console.WriteLine("[INFO] Ejemplos:");
             Console.WriteLine("  Hola a todos");
             Console.WriteLine("  /send abc12345 Hola cliente específico");
             Console.WriteLine("  /file abc12345 documento.txt");
+            Console.WriteLine("  /downloads");
+            Console.WriteLine("  /download 1");
+            Console.WriteLine("  /reject 2");
             Console.WriteLine("  /create prueba.txt");
         }
 

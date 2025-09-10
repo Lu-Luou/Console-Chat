@@ -17,9 +17,16 @@ namespace ChatClient.Core
         private readonly object _sendLock = new object();
         private readonly Dictionary<string, FileTransferInfo> _activeTransfers = new();
         private readonly string _storageDirectory;
+        private readonly List<PendingDownload> _pendingDownloads = new();
+        private int _nextDownloadId = 1;
+        private readonly object _pendingLock = new object();
+        private string? _clientId;
+        private readonly Dictionary<string, PendingUpload> _pendingUploads = new();
+        private readonly object _uploadLock = new object();
 
         public string ClientName { get; set; } = "Cliente";
         public bool IsConnected => _tcpClient?.Connected == true;
+        public string? ClientId => _clientId;
         
         public event EventHandler<MessageReceivedEventArgs>? MessageReceived;
         public event EventHandler<FileTransferEventArgs>? FileTransferStarted;
@@ -190,42 +197,67 @@ namespace ChatClient.Core
                     return false;
                 }
 
-                // Leer y enviar archivo en chunks
+                // Guardar la información de subida pendiente
+                var pendingUpload = new PendingUpload(fileStart.TransferId, actualFileName, actualFilePath, targetClientId, isCompressed);
+                
+                lock (_uploadLock)
+                {
+                    _pendingUploads[fileStart.TransferId] = pendingUpload;
+                }
+
+                Console.WriteLine($"[>>>] Esperando confirmación del receptor para: {actualFileName}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERR] Error enviando archivo: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Envía los datos del archivo después de la confirmación
+        /// </summary>
+        private async Task SendFileDataAsync(PendingUpload pendingUpload)
+        {
+            try
+            {
                 const int chunkSize = 8192;
-                using var fileStream = new FileStream(actualFilePath, FileMode.Open, FileAccess.Read);
+                using var fileStream = new FileStream(pendingUpload.FilePath, FileMode.Open, FileAccess.Read);
                 var buffer = new byte[chunkSize];
                 int sequenceNumber = 0;
                 int bytesRead;
                 long totalBytesSent = 0;
                 double lastProgressShown = 0;
+                long fileSize = new FileInfo(pendingUpload.FilePath).Length;
 
                 while ((bytesRead = await fileStream.ReadAsync(buffer, 0, chunkSize)) > 0)
                 {
                     var chunk = new byte[bytesRead];
                     Array.Copy(buffer, chunk, bytesRead);
 
-                    var fileData = new FileDataMessage(fileStart.TransferId, chunk, sequenceNumber, targetClientId);
+                    var fileData = new FileDataMessage(pendingUpload.TransferId, chunk, sequenceNumber, pendingUpload.TargetClientId);
                     
                     if (!await SendMessageAsync(fileData))
                     {
                         Console.WriteLine($"[ERR] Error enviando chunk {sequenceNumber}");
                         
                         // Limpiar archivo temporal si se creó
-                        if (isCompressed && actualFilePath != filePath)
+                        if (pendingUpload.IsCompressed)
                         {
-                            try { File.Delete(actualFilePath); } catch { }
+                            try { File.Delete(pendingUpload.FilePath); } catch { }
                         }
-                        return false;
+                        return;
                     }
 
                     totalBytesSent += bytesRead;
                     sequenceNumber++;
                     
                     // Mostrar barra de progreso cada pocos chunks
-                    var progress = (double)totalBytesSent / actualFileSize * 100;
+                    var progress = (double)totalBytesSent / fileSize * 100;
                     if (sequenceNumber % 50 == 0 || progress >= lastProgressShown + 5)
                     {
-                        ShowProgressBar("⬆", actualFileName, progress, totalBytesSent, actualFileSize);
+                        ShowProgressBar("⬆", pendingUpload.FileName, progress, totalBytesSent, fileSize);
                         lastProgressShown = progress;
                     }
                     
@@ -234,25 +266,29 @@ namespace ChatClient.Core
                 }
 
                 // Enviar mensaje de fin
-                var fileEnd = new FileEndMessage(fileStart.TransferId, targetClientId, true);
+                var fileEnd = new FileEndMessage(pendingUpload.TransferId, pendingUpload.TargetClientId, true);
                 await SendMessageAsync(fileEnd);
 
                 // Limpiar barra de progreso
                 ClearProgressBar();
 
                 // Limpiar archivo temporal si se creó
-                if (isCompressed && actualFilePath != filePath)
+                if (pendingUpload.IsCompressed)
                 {
-                    try { File.Delete(actualFilePath); } catch { }
+                    try { File.Delete(pendingUpload.FilePath); } catch { }
                 }
 
-                Console.WriteLine($"[OK] Archivo enviado: {actualFileName}");
-                return true;
+                Console.WriteLine($"[OK] Archivo enviado: {pendingUpload.FileName}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERR] Error enviando archivo: {ex.Message}");
-                return false;
+                Console.WriteLine($"[ERR] Error enviando datos del archivo: {ex.Message}");
+                
+                // Limpiar archivo temporal si se creó
+                if (pendingUpload.IsCompressed)
+                {
+                    try { File.Delete(pendingUpload.FilePath); } catch { }
+                }
             }
         }
 
@@ -485,6 +521,10 @@ namespace ChatClient.Core
                     case ClientIdResponseMessage idResponse:
                         await HandleClientIdResponseAsync(idResponse);
                         break;
+                    
+                    case UploadConfirmedMessage uploadConfirmed:
+                        await HandleUploadConfirmedAsync(uploadConfirmed);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -512,37 +552,34 @@ namespace ChatClient.Core
         {
             try
             {
-                ClearCurrentLine();
-                Console.WriteLine($"[<<<] Recibiendo archivo: {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
-                
-                // Crear ruta única para el archivo (evitar sobrescribir)
-                var fileName = fileStart.FileName;
-                var filePath = Path.Combine(_storageDirectory, fileName);
-                var counter = 1;
-                
-                while (File.Exists(filePath))
+                lock (_pendingLock)
                 {
-                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                    var extension = Path.GetExtension(fileName);
-                    var newFileName = $"{nameWithoutExt}_{counter}{extension}";
-                    filePath = Path.Combine(_storageDirectory, newFileName);
-                    counter++;
+                    var pendingDownload = new PendingDownload(_nextDownloadId++, fileStart);
+                    _pendingDownloads.Add(pendingDownload);
+                    
+                    ClearCurrentLine();
+                    Console.WriteLine($"[>>>] Nueva peticion de descarga [{pendingDownload.Id}]:");
+                    Console.WriteLine($"    * {fileStart.FileName} ({FormatBytes(fileStart.FileSize)}) de {fileStart.SenderId}");
+                    Console.WriteLine();
+                    
+                    var pendingCount = _pendingDownloads.Count;
+                    if (pendingCount == 1)
+                    {
+                        Console.WriteLine($"[!] /download {pendingDownload.Id} (aceptar) | /reject {pendingDownload.Id} (rechazar) | /downloads (ver todas)");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[!] Tienes {pendingCount} peticiones pendientes. Usa /downloads para verlas todas.");
+                    }
+                    RestorePrompt();
                 }
                 
-                // Crear info de transferencia
-                var transferInfo = new FileTransferInfo(fileStart.TransferId, fileName, fileStart.FileSize, fileStart.SenderId);
-                transferInfo.FileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
-                
-                _activeTransfers[fileStart.TransferId] = transferInfo;
-                
-                Console.WriteLine($"[>>>] Transferencia iniciada: {Path.GetFileName(filePath)}");
-                FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
-                RestorePrompt();
+                // No enviamos confirmación inmediata - esperamos que el usuario acepte
             }
             catch (Exception ex)
             {
                 ClearCurrentLine();
-                Console.WriteLine($"[ERR] Error iniciando transferencia: {ex.Message}");
+                Console.WriteLine($"[ERR] Error procesando peticion de descarga: {ex.Message}");
                 RestorePrompt();
             }
             
@@ -583,6 +620,19 @@ namespace ChatClient.Core
                 }
                 else
                 {
+                    // Verificar si es una transferencia pendiente (no aceptada aún)
+                    lock (_pendingLock)
+                    {
+                        var pendingDownload = _pendingDownloads.FirstOrDefault(p => p.TransferId == fileData.TransferId);
+                        if (pendingDownload != null)
+                        {
+                            // Es una transferencia pendiente, ignorar silenciosamente
+                            // El usuario aún no ha aceptado la descarga
+                            return;
+                        }
+                    }
+                    
+                    // No es pendiente, mostrar advertencia
                     ClearCurrentLine();
                     Console.WriteLine($"[WARN] Transferencia no encontrada: {fileData.TransferId}");
                     RestorePrompt();
@@ -608,9 +658,8 @@ namespace ChatClient.Core
                     ClearCurrentLine();
                     if (fileEnd.Success)
                     {
-                        var filePath = Path.Combine(_storageDirectory, transferInfo.FileName);
                         Console.WriteLine($"[OK] Transferencia completada: {transferInfo.FileName}");
-                        Console.WriteLine($"[OK] Archivo guardado en: {filePath}");
+                        Console.WriteLine($"[OK] Archivo guardado en: storage/{transferInfo.FileName}");
                     }
                     else
                     {
@@ -638,9 +687,29 @@ namespace ChatClient.Core
                 }
                 else
                 {
-                    ClearCurrentLine();
-                    Console.WriteLine($"[WARN] Transferencia no encontrada para finalizar: {fileEnd.TransferId}");
-                    RestorePrompt();
+                    // Verificar si es una transferencia pendiente (no aceptada aún)
+                    lock (_pendingLock)
+                    {
+                        var pendingDownload = _pendingDownloads.FirstOrDefault(p => p.TransferId == fileEnd.TransferId);
+                        if (pendingDownload != null)
+                        {
+                            // Transferencia pendiente que se está cerrando, remover de la cola
+                            _pendingDownloads.Remove(pendingDownload);
+                            ClearCurrentLine();
+                            Console.WriteLine($"[INFO] Peticion de descarga expirada: {pendingDownload.FileName}");
+                            RestorePrompt();
+                            return Task.CompletedTask;
+                        }
+                    }
+                    
+                    // No es pendiente ni activa - esto puede ser normal si somos el emisor
+                    // Solo mostrar advertencia si realmente hay un error
+                    if (!fileEnd.Success)
+                    {
+                        ClearCurrentLine();
+                        Console.WriteLine($"[WARN] Transferencia no encontrada para finalizar: {fileEnd.TransferId}");
+                        RestorePrompt();
+                    }
                 }
                 
                 FileTransferCompleted?.Invoke(this, new FileTransferEventArgs(fileEnd.TransferId, ""));
@@ -658,12 +727,7 @@ namespace ChatClient.Core
         private Task HandleAckAsync(AckMessage ack)
         {
             // Los ACK se procesan silenciosamente para no hacer spam en la consola
-            // Solo mostrar ACK si hay problemas o cada cierto número de chunks
-            if (ack.SequenceNumber % 200 == 0)
-            {
-                // Mostrar confirmación ocasional sin interrumpir
-                ShowProgressBar("✓", "ACK", 0, ack.SequenceNumber, ack.SequenceNumber);
-            }
+            // No mostramos nada - los ACK son confirmaciones internas
             return Task.CompletedTask;
         }
 
@@ -677,10 +741,29 @@ namespace ChatClient.Core
 
         private Task HandleClientIdResponseAsync(ClientIdResponseMessage idResponse)
         {
+            _clientId = idResponse.ClientId;
             ClearCurrentLine();
             Console.WriteLine($"[ID] Tu ID de cliente es: {idResponse.ClientId}");
             Console.WriteLine($"[TIP] Comparte este ID para que otros puedan enviarte archivos");
             RestorePrompt();
+            return Task.CompletedTask;
+        }
+
+        private Task HandleUploadConfirmedAsync(UploadConfirmedMessage uploadConfirmed)
+        {
+            lock (_uploadLock)
+            {
+                if (_pendingUploads.TryGetValue(uploadConfirmed.TransferId, out var pendingUpload))
+                {
+                    // Remover de pendientes y comenzar el envío
+                    _pendingUploads.Remove(uploadConfirmed.TransferId);
+                    
+                    Console.WriteLine($"[OK] Descarga confirmada por el receptor, enviando: {pendingUpload.FileName}");
+                    
+                    // Iniciar el envío de datos en segundo plano
+                    Task.Run(async () => await SendFileDataAsync(pendingUpload));
+                }
+            }
             return Task.CompletedTask;
         }
 
@@ -792,6 +875,186 @@ namespace ChatClient.Core
             catch
             {
                 // Ignorar errores de consola
+            }
+        }
+
+        /// <summary>
+        /// Acepta una petición de descarga por ID
+        /// </summary>
+        public bool AcceptDownload(int downloadId)
+        {
+            lock (_pendingLock)
+            {
+                var pendingDownload = _pendingDownloads.FirstOrDefault(p => p.Id == downloadId);
+                if (pendingDownload == null)
+                {
+                    Console.WriteLine($"[X] No se encontró petición de descarga con ID {downloadId}");
+                    return false;
+                }
+
+                try
+                {
+                    var fileStart = pendingDownload.OriginalMessage;
+                    
+                    // Crear ruta única para el archivo (evitar sobrescribir)
+                    var fileName = fileStart.FileName;
+                    var filePath = Path.Combine(_storageDirectory, fileName);
+                    var counter = 1;
+                    
+                    while (File.Exists(filePath))
+                    {
+                        var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                        var extension = Path.GetExtension(fileName);
+                        var newFileName = $"{nameWithoutExt}_{counter}{extension}";
+                        filePath = Path.Combine(_storageDirectory, newFileName);
+                        counter++;
+                    }
+                    
+                    // Crear info de transferencia
+                    var transferInfo = new FileTransferInfo(fileStart.TransferId, fileName, fileStart.FileSize, fileStart.SenderId);
+                    transferInfo.FileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+                    
+                    _activeTransfers[fileStart.TransferId] = transferInfo;
+                    
+                    // Remover de peticiones pendientes
+                    _pendingDownloads.Remove(pendingDownload);
+                    
+                    // Enviar mensaje de aceptación al servidor
+                    var acceptMessage = new DownloadAcceptMessage(fileStart.TransferId) { SenderId = _clientId ?? "" };
+                    SendMessageAsync(acceptMessage).ConfigureAwait(false);
+                    
+                    Console.WriteLine($"[OK] Iniciando descarga: {Path.GetFileName(filePath)}");
+                    FileTransferStarted?.Invoke(this, new FileTransferEventArgs(fileStart.TransferId, fileStart.FileName));
+                    
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ERR] Error iniciando descarga: {ex.Message}");
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rechaza una petición de descarga por ID
+        /// </summary>
+        public bool RejectDownload(int downloadId)
+        {
+            lock (_pendingLock)
+            {
+                var pendingDownload = _pendingDownloads.FirstOrDefault(p => p.Id == downloadId);
+                if (pendingDownload == null)
+                {
+                    Console.WriteLine($"[X] No se encontró petición de descarga con ID {downloadId}");
+                    return false;
+                }
+
+                // Enviar mensaje de rechazo al servidor
+                var rejectMessage = new DownloadRejectMessage(pendingDownload.TransferId) { SenderId = _clientId ?? "" };
+                SendMessageAsync(rejectMessage).ConfigureAwait(false);
+
+                _pendingDownloads.Remove(pendingDownload);
+                Console.WriteLine($"[REJECT] Peticion de descarga rechazada: {pendingDownload.FileName} (de {pendingDownload.SenderId})");
+                
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Limpia las subidas pendientes que han expirado
+        /// </summary>
+        private void CleanupOldPendingUploads()
+        {
+            lock (_uploadLock)
+            {
+                var expiredUploads = _pendingUploads.Values
+                    .Where(upload => DateTime.Now - upload.CreatedAt > TimeSpan.FromMinutes(2))
+                    .ToList();
+
+                foreach (var upload in expiredUploads)
+                {
+                    _pendingUploads.Remove(upload.TransferId);
+                    
+                    // Limpiar archivo temporal si se creó
+                    if (upload.IsCompressed)
+                    {
+                        try { File.Delete(upload.FilePath); } catch { }
+                    }
+                    
+                    Console.WriteLine($"[TIMEOUT] El receptor no aceptó la descarga de: {upload.FileName}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Muestra todas las peticiones de descarga pendientes
+        /// </summary>
+        public void ShowPendingDownloads()
+        {
+            lock (_pendingLock)
+            {
+                // Limpiar peticiones antiguas (más de 10 minutos)
+                CleanupOldPendingDownloads();
+                CleanupOldPendingUploads();
+                
+                if (_pendingDownloads.Count == 0)
+                {
+                    Console.WriteLine("[INFO] No hay peticiones de descarga pendientes");
+                    return;
+                }
+
+                Console.WriteLine($"[DOWNLOADS] Peticiones de descarga pendientes ({_pendingDownloads.Count}):");
+                Console.WriteLine("-".PadRight(60, '-'));
+                
+                foreach (var download in _pendingDownloads.OrderBy(d => d.Id))
+                {
+                    var timeAgo = DateTime.Now - download.ReceivedAt;
+                    var timeAgoText = timeAgo.TotalMinutes < 1 
+                        ? "hace instantes" 
+                        : $"hace {(int)timeAgo.TotalMinutes} min";
+                        
+                    Console.WriteLine($"  [{download.Id}] {download.FileName}");
+                    Console.WriteLine($"      Tamaño: {FormatBytes(download.FileSize)} | De: {download.SenderId}");
+                    Console.WriteLine($"      Recibido: {timeAgoText} ({download.ReceivedAt:HH:mm:ss})");
+                    Console.WriteLine();
+                }
+                
+                Console.WriteLine("[COMMANDS] Comandos:");
+                Console.WriteLine("   /download <id>  - Aceptar descarga");
+                Console.WriteLine("   /reject <id>    - Rechazar descarga");
+                Console.WriteLine("   /downloads      - Ver esta lista");
+            }
+        }
+
+        /// <summary>
+        /// Limpia peticiones de descarga antiguas (más de 10 minutos)
+        /// </summary>
+        private void CleanupOldPendingDownloads()
+        {
+            var cutoffTime = DateTime.Now.AddMinutes(-10);
+            var oldDownloads = _pendingDownloads.Where(d => d.ReceivedAt < cutoffTime).ToList();
+            
+            foreach (var oldDownload in oldDownloads)
+            {
+                _pendingDownloads.Remove(oldDownload);
+            }
+            
+            if (oldDownloads.Count > 0)
+            {
+                Console.WriteLine($"[CLEANUP] Se eliminaron {oldDownloads.Count} peticion(es) antigua(s)");
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el número de peticiones pendientes
+        /// </summary>
+        public int GetPendingDownloadsCount()
+        {
+            lock (_pendingLock)
+            {
+                CleanupOldPendingDownloads();
+                return _pendingDownloads.Count;
             }
         }
 
@@ -1001,6 +1264,31 @@ namespace ChatClient.Core
     }
 
     /// <summary>
+    /// Petición de descarga pendiente
+    /// </summary>
+    public class PendingDownload
+    {
+        public int Id { get; set; }
+        public string TransferId { get; set; }
+        public string FileName { get; set; }
+        public long FileSize { get; set; }
+        public string SenderId { get; set; }
+        public DateTime ReceivedAt { get; set; }
+        public FileStartMessage OriginalMessage { get; set; }
+
+        public PendingDownload(int id, FileStartMessage fileStart)
+        {
+            Id = id;
+            TransferId = fileStart.TransferId;
+            FileName = fileStart.FileName;
+            FileSize = fileStart.FileSize;
+            SenderId = fileStart.SenderId;
+            ReceivedAt = DateTime.Now;
+            OriginalMessage = fileStart;
+        }
+    }
+
+    /// <summary>
     /// Información de transferencia de archivo en curso
     /// </summary>
     public class FileTransferInfo
@@ -1023,6 +1311,29 @@ namespace ChatClient.Core
             ExpectedSequence = 0;
             BytesReceived = 0;
             LastProgressShown = 0;
+        }
+    }
+
+    /// <summary>
+    /// Información de una subida pendiente de confirmación
+    /// </summary>
+    public class PendingUpload
+    {
+        public string TransferId { get; set; }
+        public string FileName { get; set; }
+        public string FilePath { get; set; }
+        public string TargetClientId { get; set; }
+        public bool IsCompressed { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        public PendingUpload(string transferId, string fileName, string filePath, string targetClientId, bool isCompressed = false)
+        {
+            TransferId = transferId;
+            FileName = fileName;
+            FilePath = filePath;
+            TargetClientId = targetClientId;
+            IsCompressed = isCompressed;
+            CreatedAt = DateTime.Now;
         }
     }
 }

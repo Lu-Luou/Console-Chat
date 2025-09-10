@@ -71,6 +71,16 @@ namespace ChatServer.Core
                     };
                 }
 
+                // Verificar si la transferencia está confirmada
+                if (!transfer.IsConfirmedByReceiver)
+                {
+                    return new FileTransferResult 
+                    { 
+                        Success = false, 
+                        ErrorMessage = "Transferencia no confirmada por el receptor" 
+                    };
+                }
+
                 // Añadir datos al transfer
                 transfer.ReceivedData[fileData.SequenceNumber] = fileData.Data;
                 transfer.BytesReceived += fileData.Data.Length;
@@ -187,6 +197,41 @@ namespace ChatServer.Core
         }
 
         /// <summary>
+        /// Confirma una transferencia permitiendo el envío de datos
+        /// </summary>
+        public bool ConfirmTransfer(string transferId)
+        {
+            if (_activeTransfers.TryGetValue(transferId, out var transfer))
+            {
+                transfer.IsConfirmedByReceiver = true;
+                Console.WriteLine($"✅ Transferencia confirmada: {transfer.FileName}");
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Rechaza una transferencia y la elimina
+        /// </summary>
+        public bool RejectTransfer(string transferId)
+        {
+            if (_activeTransfers.TryRemove(transferId, out var transfer))
+            {
+                Console.WriteLine($"❌ Transferencia rechazada: {transfer.FileName}");
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Verifica si una transferencia está confirmada para recibir datos
+        /// </summary>
+        public bool IsTransferConfirmed(string transferId)
+        {
+            return _activeTransfers.TryGetValue(transferId, out var transfer) && transfer.IsConfirmedByReceiver;
+        }
+
+        /// <summary>
         /// Obtiene estadísticas de las transferencias activas
         /// </summary>
         public TransferStats GetStats()
@@ -275,6 +320,7 @@ namespace ChatServer.Core
         public long BytesReceived { get; set; }
         public int ExpectedSequences { get; set; }
         public ConcurrentDictionary<int, byte[]> ReceivedData { get; set; } = new();
+        public bool IsConfirmedByReceiver { get; set; } = false; // Nueva propiedad
 
         public double Progress => FileSize > 0 ? (double)BytesReceived / FileSize : 0;
         public TimeSpan Duration => DateTime.UtcNow - StartTime;

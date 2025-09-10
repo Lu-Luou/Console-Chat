@@ -48,6 +48,21 @@ namespace ChatServer.Protocol
         /// <summary>
         /// Respuesta del servidor con el ID del cliente
         /// </summary>
-        CLIENT_ID_RESPONSE = 0x09
+        CLIENT_ID_RESPONSE = 0x09,
+        
+        /// <summary>
+        /// Cliente acepta descarga de archivo
+        /// </summary>
+        DOWNLOAD_ACCEPT = 0x0A,
+        
+        /// <summary>
+        /// Cliente rechaza descarga de archivo
+        /// </summary>
+        DOWNLOAD_REJECT = 0x0B,
+        
+        /// <summary>
+        /// Servidor confirma que el receptor aceptó la descarga
+        /// </summary>
+        UPLOAD_CONFIRMED = 0x0C
     }
 }
